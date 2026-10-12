@@ -1,5 +1,7 @@
 "use client";
 
+import MessagesPanel from "@/components/MessagesPanel";
+import { useDashboardNavigation } from "@/lib/dashboard-navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import NotificationBell from "@/components/NotificationBell";
@@ -165,7 +167,20 @@ export default function HelperDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [loggingOut, setLoggingOut] = useState(false);
+  const { section, navigate } = useDashboardNavigation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  useEffect(() => {
+    function close(event: KeyboardEvent) {
+      if (event.key === "Escape" && mobileMenuOpen) {
+        setMobileMenuOpen(false);
+        const trigger = Array.from(document.querySelectorAll<HTMLButtonElement>('button[aria-controls="helper-mobile-menu"]')).find((button) => button.getClientRects().length > 0);
+        trigger?.focus();
+      }
+    }
+    window.addEventListener("keydown", close);
+    return () => window.removeEventListener("keydown", close);
+  }, [mobileMenuOpen]);
+
   const [documentType, setDocumentType] = useState("identity_document");
   const [documentName, setDocumentName] = useState("");
   const [documentNumber, setDocumentNumber] = useState("");
@@ -571,7 +586,7 @@ export default function HelperDashboardPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f7f9fc] text-slate-900">
+    <main id="overview" tabIndex={-1} className="min-h-screen bg-[#f7f9fc] text-slate-900">
       <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 sm:px-8">
           <div className="flex items-center gap-9">
@@ -591,6 +606,8 @@ export default function HelperDashboardPage() {
             <nav className="hidden items-center gap-6 lg:flex">
               <button
                 type="button"
+                onClick={() => navigate("overview")}
+                aria-current={section === "overview" ? "location" : undefined}
                 className="font-bold text-[#082f5b]"
               >
                 {t("dashboard")}
@@ -598,6 +615,8 @@ export default function HelperDashboardPage() {
 
               <button
                 type="button"
+                onClick={() => navigate("opportunities")}
+                aria-current={section === "opportunities" ? "location" : undefined}
                 className="font-semibold text-slate-600 transition hover:text-[#082f5b]"
               >
                 {t("opportunities")}
@@ -605,6 +624,8 @@ export default function HelperDashboardPage() {
 
               <button
                 type="button"
+                onClick={() => navigate("jobs")}
+                aria-current={section === "jobs" ? "location" : undefined}
                 className="font-semibold text-slate-600 transition hover:text-[#082f5b]"
               >
                 {t("jobs")}
@@ -612,6 +633,8 @@ export default function HelperDashboardPage() {
 
               <button
                 type="button"
+                onClick={() => navigate("messages")}
+                aria-current={section === "messages" ? "location" : undefined}
                 className="font-semibold text-slate-600 transition hover:text-[#082f5b]"
               >
                 {t("messages")}
@@ -619,6 +642,8 @@ export default function HelperDashboardPage() {
 
               <button
                 type="button"
+                onClick={() => navigate("earnings")}
+                aria-current={section === "earnings" ? "location" : undefined}
                 className="font-semibold text-slate-600 transition hover:text-[#082f5b]"
               >
                 {t("earnings")}
@@ -665,24 +690,28 @@ export default function HelperDashboardPage() {
             onClick={() => setMobileMenuOpen((current) => !current)}
             className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-xl text-[#082f5b] sm:hidden"
             aria-label="Open menu"
+            aria-expanded={mobileMenuOpen}
+            aria-controls="helper-mobile-menu"
           >
             ☰
           </button>
         </div>
 
         {mobileMenuOpen && (
-          <div className="border-t border-slate-100 bg-white px-5 py-4 sm:hidden">
+          <div id="helper-mobile-menu" className="border-t border-slate-100 bg-white px-5 py-4 sm:hidden">
             <div className="space-y-1">
               <p className="mb-3 font-bold text-[#082f5b]">
                 {data.user.name}
               </p>
 
-              <button
-                type="button"
-                className="block w-full rounded-lg bg-slate-50 px-3 py-2 text-left font-semibold text-[#082f5b]"
-              >
-                {t("dashboard")}
-              </button>
+<nav aria-label="Helper mobile navigation" className="grid gap-1">
+                <button type="button" onClick={() => { navigate("overview"); setMobileMenuOpen(false); }} aria-current={section === "overview" ? "location" : undefined} className="rounded-lg px-3 py-2 text-left font-semibold text-slate-600">{t("dashboard")}</button>
+                <button type="button" onClick={() => { navigate("opportunities"); setMobileMenuOpen(false); }} aria-current={section === "opportunities" ? "location" : undefined} className="rounded-lg px-3 py-2 text-left font-semibold text-slate-600">{t("opportunities")}</button>
+                <button type="button" onClick={() => { navigate("jobs"); setMobileMenuOpen(false); }} aria-current={section === "jobs" ? "location" : undefined} className="rounded-lg px-3 py-2 text-left font-semibold text-slate-600">{t("jobs")}</button>
+                <button type="button" onClick={() => { navigate("messages"); setMobileMenuOpen(false); }} aria-current={section === "messages" ? "location" : undefined} className="rounded-lg px-3 py-2 text-left font-semibold text-slate-600">{t("messages")}</button>
+                <button type="button" onClick={() => { navigate("earnings"); setMobileMenuOpen(false); }} aria-current={section === "earnings" ? "location" : undefined} className="rounded-lg px-3 py-2 text-left font-semibold text-slate-600">{t("earnings")}</button>
+              </nav>
+              <div className="flex items-center gap-3 py-2"><RegionSelector /><NotificationBell /></div>
 
               <button
                 type="button"
@@ -703,6 +732,12 @@ export default function HelperDashboardPage() {
           </div>
         )}
       </header>
+
+      <nav aria-label="Helper tablet navigation" className="hidden flex-wrap gap-5 border-b border-slate-200 bg-white px-5 py-3 sm:flex lg:hidden">
+        {[["dashboard", "overview"], ["opportunities", "opportunities"], ["jobs", "jobs"], ["messages", "messages"], ["earnings", "earnings"]].map(([label, id]) => (
+          <button key={id} type="button" onClick={() => navigate(id)} aria-current={section === id ? "location" : undefined} className="text-sm font-semibold text-slate-600">{t(label)}</button>
+        ))}
+      </nav>
 
       <section className="bg-[#082f5b]">
         <div className="mx-auto max-w-7xl px-5 py-9 sm:px-8 sm:py-11">
@@ -823,7 +858,7 @@ export default function HelperDashboardPage() {
                 {marketplaceError}
               </div>
             )}
-            <section className="rounded-3xl border border-slate-200 bg-white shadow-sm">
+            <section id="services" tabIndex={-1} className="rounded-3xl border border-slate-200 bg-white shadow-sm">
               <div className="flex items-center justify-between gap-4 border-b border-slate-100 px-6 py-5 sm:px-7">
                 <div>
                   <h2 className="text-xl font-bold text-[#082f5b]">
@@ -933,7 +968,7 @@ export default function HelperDashboardPage() {
               )}
             </section>
 
-            <section className="rounded-3xl border border-slate-200 bg-white shadow-sm">
+            <section id="opportunities" tabIndex={-1} className="rounded-3xl border border-slate-200 bg-white shadow-sm">
               <div className="flex items-center justify-between gap-4 border-b border-slate-100 px-6 py-5 sm:px-7">
                 <div>
                   <h2 className="text-xl font-bold text-[#082f5b]">
@@ -991,7 +1026,7 @@ export default function HelperDashboardPage() {
               )}
             </section>
 
-            <section className="rounded-3xl border border-slate-200 bg-white shadow-sm">
+            <section id="jobs" tabIndex={-1} className="rounded-3xl border border-slate-200 bg-white shadow-sm">
               <div className="border-b border-slate-100 px-6 py-5 sm:px-7">
                 <h2 className="text-xl font-bold text-[#082f5b]">
                   {t("upcomingJobs")}
@@ -1036,7 +1071,7 @@ export default function HelperDashboardPage() {
               )}
             </section>
 
-            <section className="rounded-3xl border border-slate-200 bg-white shadow-sm">
+            <section id="earnings" tabIndex={-1} className="rounded-3xl border border-slate-200 bg-white shadow-sm">
               <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5 sm:px-7">
                 <div><h2 className="text-xl font-bold text-[#082f5b]">{t("completedJobs")}</h2><p className="mt-1 text-sm text-slate-500">Work history, earnings and reviews</p></div>
                 <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">{completedJobs.length} completed</span>
@@ -1237,26 +1272,12 @@ export default function HelperDashboardPage() {
               </div>
             </section>
 
-            <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <section id="messages" tabIndex={-1} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
               <h2 className="text-lg font-bold text-[#082f5b]">
                 {t("messages")}
               </h2>
 
-              <div className="mt-5 flex gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#eef3f8]">
-                  💬
-                </div>
-
-                <div>
-                  <p className="font-semibold text-slate-700">
-                    No new messages
-                  </p>
-
-                  <p className="mt-1 text-sm leading-5 text-slate-500">
-                    Customer and UrbanHelpHub messages will appear here.
-                  </p>
-                </div>
-              </div>
+              <MessagesPanel />
             </section>
           </aside>
         </div>

@@ -1,5 +1,7 @@
 "use client";
 
+import MessagesPanel from "@/components/MessagesPanel";
+import { useDashboardNavigation } from "@/lib/dashboard-navigation";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import NotificationBell from "@/components/NotificationBell";
@@ -70,7 +72,20 @@ export default function CustomerDashboard() {
   const { t } = useLanguage();
 
   const [user, setUser] = useState<User | null>(null);
+  const { section, navigate } = useDashboardNavigation();
   const [menuOpen, setMenuOpen] = useState(false);
+  useEffect(() => {
+    function close(event: KeyboardEvent) {
+      if (event.key === "Escape" && menuOpen) {
+        setMenuOpen(false);
+        const trigger = Array.from(document.querySelectorAll<HTMLButtonElement>('button[aria-controls="customer-account-menu"]')).find((button) => button.getClientRects().length > 0);
+        trigger?.focus();
+      }
+    }
+    window.addEventListener("keydown", close);
+    return () => window.removeEventListener("keydown", close);
+  }, [menuOpen]);
+
   const [tasks, setTasks] = useState<CustomerTask[]>([]);
   const [tasksLoading, setTasksLoading] = useState(true);
   const [taskError, setTaskError] = useState("");
@@ -218,7 +233,7 @@ export default function CustomerDashboard() {
   const completedTasks = tasks.filter((task) => task.status === "completed").length;
 
   return (
-    <main className="min-h-screen bg-[#f7f9fb] text-slate-900">
+    <main id="overview" tabIndex={-1} className="min-h-screen bg-[#f7f9fb] text-slate-900">
 
       {/* HEADER */}
 
@@ -235,14 +250,18 @@ export default function CustomerDashboard() {
 
           <nav className="hidden items-center gap-7 text-sm font-bold text-slate-600 md:flex">
             <a
-              href="/dashboard"
+              href="#overview"
+                onClick={(event) => { event.preventDefault(); navigate("overview"); setMenuOpen(false); }}
+                aria-current={section === "overview" ? "location" : undefined}
               className="text-[var(--navy)]"
             >
               {t("dashboard")}
             </a>
 
             <a
-              href="/post-a-task"
+              href="#tasks"
+                onClick={(event) => { event.preventDefault(); navigate("tasks"); setMenuOpen(false); }}
+                aria-current={section === "tasks" ? "location" : undefined}
               className="hover:text-[var(--navy)]"
             >
               {t("tasks")}
@@ -250,6 +269,8 @@ export default function CustomerDashboard() {
 
             <a
               href="#messages"
+                onClick={(event) => { event.preventDefault(); navigate("messages"); setMenuOpen(false); }}
+                aria-current={section === "messages" ? "location" : undefined}
               className="hover:text-[var(--navy)]"
             >
               {t("messages")}
@@ -271,6 +292,8 @@ export default function CustomerDashboard() {
               onClick={() => setMenuOpen((value) => !value)}
               className="grid h-11 w-11 place-items-center rounded-full bg-[var(--navy)] font-black text-white"
               aria-label="Account menu"
+              aria-expanded={menuOpen}
+              aria-controls="customer-account-menu"
             >
               {firstName.charAt(0).toUpperCase()}
             </button>
@@ -281,13 +304,15 @@ export default function CustomerDashboard() {
             onClick={() => setMenuOpen((value) => !value)}
             className="grid h-11 w-11 place-items-center rounded-xl border border-slate-200 text-2xl text-[var(--navy)] md:hidden"
             aria-label="Open menu"
+            aria-expanded={menuOpen}
+            aria-controls="customer-account-menu"
           >
             ☰
           </button>
         </div>
 
         {menuOpen && (
-          <div className="absolute right-4 top-[68px] w-[280px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+          <div id="customer-account-menu" className="absolute right-4 top-[68px] w-[280px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
 
             <div className="border-b border-slate-100 p-5">
               <p className="font-black text-[var(--navy)]">
@@ -300,15 +325,20 @@ export default function CustomerDashboard() {
             </div>
 
             <div className="grid p-2">
+              <div className="flex items-center gap-3 px-4 py-2 md:hidden"><RegionSelector /><NotificationBell /></div>
               <a
-                href="/dashboard"
+                href="#overview"
+                onClick={(event) => { event.preventDefault(); navigate("overview"); setMenuOpen(false); }}
+                aria-current={section === "overview" ? "location" : undefined}
                 className="rounded-xl px-4 py-3 text-sm font-bold hover:bg-slate-50"
               >
                 {t("dashboard")}
               </a>
 
               <a
-                href="/post-a-task"
+                href="#tasks"
+                onClick={(event) => { event.preventDefault(); navigate("tasks"); setMenuOpen(false); }}
+                aria-current={section === "tasks" ? "location" : undefined}
                 className="rounded-xl px-4 py-3 text-sm font-bold hover:bg-slate-50"
               >
                 {t("tasks")}
@@ -316,6 +346,8 @@ export default function CustomerDashboard() {
 
               <a
                 href="#messages"
+                onClick={(event) => { event.preventDefault(); navigate("messages"); setMenuOpen(false); }}
+                aria-current={section === "messages" ? "location" : undefined}
                 className="rounded-xl px-4 py-3 text-sm font-bold hover:bg-slate-50"
               >
                 {t("messages")}
@@ -323,6 +355,8 @@ export default function CustomerDashboard() {
 
               <a
                 href="#profile"
+                onClick={(event) => { event.preventDefault(); navigate("profile"); setMenuOpen(false); }}
+                aria-current={section === "profile" ? "location" : undefined}
                 className="rounded-xl px-4 py-3 text-sm font-bold hover:bg-slate-50"
               >
                 Account settings
@@ -403,7 +437,7 @@ export default function CustomerDashboard() {
 
           {/* TASK AREA */}
 
-          <article className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+          <article id="tasks" tabIndex={-1} className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
 
             <div className="flex items-center justify-between gap-4">
               <div>
@@ -417,7 +451,7 @@ export default function CustomerDashboard() {
               </div>
 
               <a
-                href="/post-a-task"
+                href="#tasks" onClick={(event) => { event.preventDefault(); navigate("tasks"); }}
                 className="hidden text-sm font-black text-[var(--green)] sm:block"
               >
                 View all →
@@ -507,6 +541,7 @@ export default function CustomerDashboard() {
 
           <article
             id="profile"
+            tabIndex={-1}
             className="rounded-[28px] border border-slate-200 bg-white p-6 sm:p-8"
           >
             <div className="flex items-start justify-between gap-4">
@@ -560,6 +595,7 @@ export default function CustomerDashboard() {
 
           <article
             id="messages"
+            tabIndex={-1}
             className="rounded-[28px] border border-slate-200 bg-white p-6 sm:p-8"
           >
             <p className="text-xs font-black uppercase tracking-[0.17em] text-[var(--green)]">
@@ -570,20 +606,7 @@ export default function CustomerDashboard() {
               Conversations
             </h2>
 
-            <div className="mt-8 text-center">
-              <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-slate-100 text-2xl">
-                💬
-              </div>
-
-              <h3 className="mt-4 font-black text-[var(--navy)]">
-                No messages yet
-              </h3>
-
-              <p className="mt-2 text-sm leading-6 text-slate-500">
-                Conversations with Helpers will appear here once you
-                start booking tasks.
-              </p>
-            </div>
+            <MessagesPanel />
           </article>
         </section>
       </div>

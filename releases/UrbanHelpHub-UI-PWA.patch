@@ -1,0 +1,2789 @@
+diff --git a/README.md b/README.md
+new file mode 100644
+index 0000000..639891c
+--- /dev/null
++++ b/README.md
+@@ -0,0 +1,118 @@
++# UrbanHelpHub
++
++UrbanHelpHub connects customers with local helpers. The repository contains a Laravel API and a Next.js frontend with Customer, Helper and Administrator dashboards.
++
++## Project structure
++
++| Path | Purpose |
++| --- | --- |
++| `backend-api/` | Laravel 13 API, Sanctum authentication, marketplace endpoints, messaging, notifications and Stripe integration |
++| `web-app/` | Next.js 16 App Router frontend, React 19 and Tailwind CSS 4 |
++| `web-app/components/` | Shared notification, region, messaging and PWA components |
++| `web-app/lib/dashboard-navigation.ts` | Accessible section navigation and active navigation state |
++| `web-app/app/manifest.ts` | Installable web app metadata |
++| `web-app/public/sw.js` | Public-asset-only service worker |
++| `web-app/tests/service-worker.test.mjs` | Service-worker safety tests |
++| `TRUEHOST_CPANEL_DEPLOYMENT.md` | Original hosting deployment guide |
++| `releases/` | UI/PWA patch ZIP, installation instructions, file list and validation report |
++
++The root-level `app`, `config`, `database` and `routes` folders were imported from the initial payment-only update. The runnable backend lives in **`backend-api`**; run Laravel commands there.
++
++## Requirements
++
++- Node.js 20.9 or newer and npm; development validation used Node.js 24.
++- PHP 8.3 or newer and Composer; validation used PHP 8.4. Your locked dependency versions must also support the selected runtime.
++- PHP extensions required by Composer, including mbstring, XML/DOM, curl and SQLite PDO for the local database.
++- HTTPS for production PWA installation. Loopback development addresses are treated as secure contexts by supported browsers.
++
++## Local development
++
++Use a local database and development configuration. Never copy production credentials or customer data into a development checkout.
++
++### Backend
++
++From the repository root:
++
++```sh
++cd backend-api
++composer install --no-interaction --prefer-dist
++# First setup only; preserve an existing .env.
++test -f .env || cp .env.example .env
++mkdir -p storage/logs storage/framework/cache/data storage/framework/sessions storage/framework/views bootstrap/cache
++test -f database/database.sqlite || touch database/database.sqlite
++```
++
++The example environment defaults to SQLite. Keep `DB_CONNECTION=sqlite`; if specifying `DB_DATABASE`, use the absolute path to your local SQLite file. Generate an application key once for a new local environment, then migrate and seed:
++
++```sh
++php artisan key:generate
++php artisan migrate
++php artisan db:seed
++php artisan serve --host=127.0.0.1 --port=8000
++```
++
++Do not regenerate an existing environment's application key. Seeding creates service categories; an initial administrator is created only when the documented `MVP_ADMIN_EMAIL` and `MVP_ADMIN_PASSWORD` variables are supplied locally. Do not commit these values.
++
++### Frontend
++
++In another terminal, from the repository root:
++
++```sh
++cd web-app
++npm ci
++NEXT_PUBLIC_API_URL=http://127.0.0.1:8000/api npm run dev
++```
++
++On Windows, configure `NEXT_PUBLIC_API_URL` using your shell or an ignored `web-app/.env.local` file instead of the POSIX inline assignment. The default frontend port is 3000. The backend's development CORS configuration permits the documented localhost frontend addresses.
++
++PWA registration is enabled only in production builds so a development service worker does not cache work in progress. To check the PWA locally:
++
++```sh
++NEXT_PUBLIC_API_URL=http://127.0.0.1:8000/api npm run build
++npm start
++```
++
++## Dashboards and existing APIs
++
++| Frontend route | Purpose |
++| --- | --- |
++| `/dashboard` | Customer tasks, profile details and conversations |
++| `/helper/dashboard` | Helper services, opportunities, jobs, earnings and conversations |
++| `/become-a-helper` | Existing Helper profile, service and verification workflow |
++| `/admin` | Existing Helper review queue, task approvals and payments |
++| `/admin/helpers/[id]` | Detailed Helper review and verification |
++| `/login`, `/register`, `/post-a-task` | Existing authentication and task forms |
++
++Section navigation uses focusable anchors without moving the existing dashboard panels. Message panels use the existing authenticated `GET /api/messages` and `POST /api/tasks/{id}/messages` endpoints. Opening the list marks messages read on the backend, so the panel loads only after an explicit user action. The API remains responsible for authorization and conversation availability.
++
++## PWA behavior and security
++
++- The manifest has root scope, start URL `/`, standalone display and icons derived from the existing logo.
++- The service worker stores exactly four public assets: the offline HTML page and three icons. It never caches API responses, account information, authentication data, dashboard documents, Stripe requests or Next.js JavaScript chunks.
++- Only an unsuccessful plain homepage navigation receives the static offline fallback. Authentication, dashboards, payment-return URLs and APIs remain online-only.
++- Worker updates activate automatically without forcing a page reload. Increment the cache version in `public/sw.js` when changing its cached offline document or icons.
++- The custom native installation prompt opens only after a user click and only after browser eligibility is signaled. iOS Safari receives Share → Add to Home Screen guidance. Standalone windows suppress the suggestion; dismissal is saved locally.
++- iOS cannot reliably reveal installation status from a normal Safari tab. Native eligibility and device installation should be checked on the deployed HTTPS origin.
++
++## Validation
++
++```sh
++cd web-app
++npm run lint
++node --test tests/service-worker.test.mjs
++npm run build
++```
++
++Run `php artisan test` from `backend-api`. The UI/PWA implementation passed 18 Chromium checks, six service-worker tests and the two existing backend example tests; lint has 25 pre-existing image warnings. See [the detailed test report](releases/TEST-RESULTS.md) for the distinction between fixture-based browser checks, real local API checks and untested production behavior.
++
++## cPanel deployment and rollback
++
++Use [the patch installation guide](releases/PATCH-INSTALL-INSTRUCTIONS.md) for precise upload locations, replacement files, backup, rebuild, cache and rollback instructions. The frontend is served by cPanel's Node.js application using `web-app/server.cjs`; preserve the existing production API URL at build time and restart the managed application after a successful build.
++
++The UI/PWA patch requires no database migrations, changes to Stripe configuration or backend cache-clearing commands. No compiled frontend build or environment files are included in the patch ZIP.
++
++## Known gaps
++
++The export has no Customer-management page/API or editable Customer account form. The Administrator Customer-management controls are explicitly unavailable. Stripe backend endpoints exist, but the exported frontend has no Checkout, Connect onboarding or connected-account payout launcher. No payment UI or business logic was invented. See [the complete list of unavailable controls](releases/UNIMPLEMENTED-CONTROLS.md).
++
++Never commit `.env` files, Stripe keys, webhook secrets, private uploads, tokens or production database exports. This patch does not change commissions, payment processing or authorization.
+diff --git a/web-app/app/admin/page.tsx b/web-app/app/admin/page.tsx
+index 849e365..80c3cc5 100644
+--- a/web-app/app/admin/page.tsx
++++ b/web-app/app/admin/page.tsx
+@@ -1,5 +1,6 @@
+ "use client";
+ 
++import { useDashboardNavigation } from "@/lib/dashboard-navigation";
+ import { useCallback, useEffect, useMemo, useState } from "react";
+ import { useRouter } from "next/navigation";
+ import NotificationBell from "@/components/NotificationBell";
+@@ -324,7 +325,20 @@ export default function AdminDashboardPage() {
+   const [filter, setFilter] = useState<
+     "all" | "pending" | "verified" | "active"
+   >("pending");
++  const { section, navigate } = useDashboardNavigation();
++  function go(id: string) { navigate(id); setMobileMenu(false); }
+   const [mobileMenu, setMobileMenu] = useState(false);
++  useEffect(() => {
++    function close(event: KeyboardEvent) {
++      if (event.key === "Escape" && mobileMenu) {
++        setMobileMenu(false);
++        const trigger = Array.from(document.querySelectorAll<HTMLButtonElement>('button[aria-controls="admin-mobile-menu"]')).find((button) => button.getClientRects().length > 0);
++        trigger?.focus();
++      }
++    }
++    window.addEventListener("keydown", close);
++    return () => window.removeEventListener("keydown", close);
++  }, [mobileMenu]);
+   const [loggingOut, setLoggingOut] = useState(false);
+   const [busyFinance, setBusyFinance] = useState<string | null>(null);
+   const [busyTaskReview, setBusyTaskReview] = useState<number | null>(null);
+@@ -607,9 +621,56 @@ export default function AdminDashboardPage() {
+   }
+ 
+   const stats = dashboard.stats;
++  const navigation = (
++<div className="space-y-1">
++            <SidebarButton
++              icon="dashboard"
++              label={t("dashboard")}
++              active={section === "overview"}
++              onClick={() => go("overview")}
++            />
++
++            <SidebarButton
++              icon="helpers"
++              label={t("helpers")}
++              active={section === "helpers"}
++              onClick={() => { setFilter("all"); go("helpers"); }}
++              badge={stats.pending_helpers}
++            />
++
++            <SidebarButton
++              icon="customers"
++              label={t("customers")}
++            />
++
++            <SidebarButton
++              icon="tasks"
++              label="Tasks"
++              active={section === "task-approvals"}
++              badge={stats.pending_tasks}
++              onClick={() => go("task-approvals")}
++            />
++
++            <SidebarButton
++              icon="payments"
++              label={t("payments")}
++              active={section === "payments"}
++              badge={stats.pending_payments + stats.pending_payouts}
++              onClick={() => go("payments")}
++            />
++
++            <SidebarButton
++              icon="shield"
++              label="Verification"
++              active={section === "verification"}
++              onClick={() => go("verification")}
++              badge={stats.pending_services}
++            />
++          </div>
++  );
+ 
+   return (
+-    <main className="min-h-screen bg-[#f6f8fb] text-slate-900">
++    <main id="overview" tabIndex={-1} className="min-h-screen bg-[#f6f8fb] text-slate-900">
+       <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur">
+         <div className="mx-auto flex max-w-[1500px] items-center justify-between px-5 py-4 sm:px-7">
+           <div className="flex items-center gap-8">
+@@ -664,13 +725,17 @@ export default function AdminDashboardPage() {
+             onClick={() => setMobileMenu((value) => !value)}
+             className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-slate-200 text-[#082f5b] transition hover:bg-slate-50 sm:hidden"
+             aria-label="Open Admin menu"
++            aria-expanded={mobileMenu}
++            aria-controls="admin-mobile-menu"
+           >
+             <Icon name="menu" />
+           </button>
+         </div>
+ 
+         {mobileMenu && (
+-          <div className="border-t border-slate-100 bg-white px-5 py-4 sm:hidden">
++          <div id="admin-mobile-menu" className="border-t border-slate-100 bg-white px-5 py-4 sm:hidden">
++            {navigation}
++            <div className="flex items-center gap-3 py-2"><RegionSelector /><NotificationBell /></div>
+             <p className="font-bold text-[#082f5b]">
+               {dashboard.admin.name}
+             </p>
+@@ -687,50 +752,14 @@ export default function AdminDashboardPage() {
+         )}
+       </header>
+ 
++      <nav aria-label="Admin tablet navigation" className="hidden border-b border-slate-200 bg-white px-5 py-3 sm:block lg:hidden">{navigation}</nav>
+       <div className="mx-auto flex max-w-[1500px]">
+         <aside className="hidden min-h-[calc(100vh-73px)] w-64 shrink-0 border-r border-slate-200 bg-white p-5 lg:block">
+           <p className="px-3 pb-3 text-xs font-bold uppercase tracking-[0.14em] text-slate-400">
+             Workspace
+           </p>
+ 
+-          <div className="space-y-1">
+-            <SidebarButton
+-              icon="dashboard"
+-              label={t("dashboard")}
+-              active
+-            />
+-
+-            <SidebarButton
+-              icon="helpers"
+-              label={t("helpers")}
+-              badge={stats.pending_helpers}
+-            />
+-
+-            <SidebarButton
+-              icon="customers"
+-              label={t("customers")}
+-            />
+-
+-            <SidebarButton
+-              icon="tasks"
+-              label="Tasks"
+-              badge={stats.pending_tasks}
+-              onClick={() => document.getElementById("task-approvals")?.scrollIntoView({ behavior: "smooth" })}
+-            />
+-
+-            <SidebarButton
+-              icon="payments"
+-              label={t("payments")}
+-              badge={stats.pending_payments + stats.pending_payouts}
+-              onClick={() => document.getElementById("payments")?.scrollIntoView({ behavior: "smooth" })}
+-            />
+-
+-            <SidebarButton
+-              icon="shield"
+-              label="Verification"
+-              badge={stats.pending_services}
+-            />
+-          </div>
++          {navigation}
+ 
+           <div className="mt-8 rounded-2xl bg-[#eef4f8] p-4">
+             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-[#082f5b]">
+@@ -788,6 +817,7 @@ export default function AdminDashboardPage() {
+             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+               <StatCard
+                 title="Pending Helpers"
++                onClick={() => { setFilter("pending"); go("helpers"); }}
+                 value={stats.pending_helpers}
+                 note="Need application review"
+                 icon="clock"
+@@ -797,6 +827,7 @@ export default function AdminDashboardPage() {
+ 
+               <StatCard
+                 title="Active Helpers"
++                onClick={() => { setFilter("active"); go("helpers"); }}
+                 value={stats.active_helpers}
+                 note={`${stats.verified_helpers} verified`}
+                 icon="check"
+@@ -813,6 +844,7 @@ export default function AdminDashboardPage() {
+ 
+               <StatCard
+                 title="Total Helpers"
++                onClick={() => { setFilter("all"); go("helpers"); }}
+                 value={stats.total_helpers}
+                 note={`${stats.pending_services} services pending`}
+                 icon="helpers"
+@@ -820,7 +852,7 @@ export default function AdminDashboardPage() {
+               />
+             </div>
+ 
+-            <div className="mt-8 rounded-3xl border border-slate-200 bg-white shadow-sm">
++            <div id="helpers" tabIndex={-1} className="mt-8 rounded-3xl border border-slate-200 bg-white shadow-sm">
+               <div className="border-b border-slate-100 p-5 sm:p-7">
+                 <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+                   <div>
+@@ -991,7 +1023,7 @@ export default function AdminDashboardPage() {
+             </div>
+ 
+             <div className="mt-8 grid gap-6 xl:grid-cols-2">
+-              <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
++              <div id="verification" tabIndex={-1} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                 <div className="flex items-start justify-between">
+                   <div>
+                     <h2 className="text-lg font-bold text-[#082f5b]">
+@@ -1061,7 +1093,7 @@ export default function AdminDashboardPage() {
+               </div>
+             </div>
+ 
+-            <section id="task-approvals" className="mt-8 scroll-mt-24 rounded-3xl border border-slate-200 bg-white shadow-sm">
++            <section id="task-approvals" tabIndex={-1} className="mt-8 scroll-mt-24 rounded-3xl border border-slate-200 bg-white shadow-sm">
+               <div className="flex flex-col gap-4 border-b border-slate-100 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-7">
+                 <div><div className="flex items-center gap-3"><h2 className="text-xl font-bold text-[#082f5b]">Customer task approvals</h2>{stats.pending_tasks > 0 && <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">{stats.pending_tasks} awaiting review</span>}</div><p className="mt-1 text-sm text-slate-500">Review safety, clarity, schedule and location before notifying Helpers.</p></div>
+                 <Icon name="tasks" className="h-7 w-7 text-[#082f5b]" />
+@@ -1076,7 +1108,7 @@ export default function AdminDashboardPage() {
+               </div>}
+             </section>
+ 
+-            <section id="payments" className="mt-8 scroll-mt-24 rounded-3xl border border-slate-200 bg-white shadow-sm">
++            <section id="payments" tabIndex={-1} className="mt-8 scroll-mt-24 rounded-3xl border border-slate-200 bg-white shadow-sm">
+               <div className="border-b border-slate-100 p-5 sm:p-7">
+                 <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+                   <div>
+@@ -1133,7 +1165,9 @@ function SidebarButton({
+   return (
+     <button
+       type="button"
+-      title={`${label} section`}
++      title={onClick ? `${label} section` : "Customer management is not implemented in this project."}
++      disabled={!onClick}
++      aria-current={active ? "location" : undefined}
+       onClick={onClick}
+       className={`flex w-full cursor-pointer items-center justify-between rounded-xl px-3 py-3 text-sm font-bold transition focus:outline-none focus:ring-4 focus:ring-green-50 ${
+         active
+@@ -1175,6 +1209,7 @@ function StatCard({
+   icon,
+   action,
+   attention = false,
++  onClick,
+ }: {
+   title: string;
+   value: number;
+@@ -1182,10 +1217,14 @@ function StatCard({
+   icon: IconName;
+   action: string;
+   attention?: boolean;
++  onClick?: () => void;
+ }) {
+   return (
+     <button
+       type="button"
++      onClick={onClick}
++      disabled={!onClick}
++      title={onClick ? action : "Customer management is not implemented in this project."}
+       className="group w-full cursor-pointer rounded-3xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-1 hover:border-green-200 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-green-50 active:translate-y-0 sm:p-6"
+     >
+       <div className="flex items-start justify-between gap-4">
+diff --git a/web-app/app/dashboard/page.tsx b/web-app/app/dashboard/page.tsx
+index e8370df..9216227 100644
+--- a/web-app/app/dashboard/page.tsx
++++ b/web-app/app/dashboard/page.tsx
+@@ -1,5 +1,7 @@
+ "use client";
+ 
++import MessagesPanel from "@/components/MessagesPanel";
++import { useDashboardNavigation } from "@/lib/dashboard-navigation";
+ import { useEffect, useState } from "react";
+ import { useRouter } from "next/navigation";
+ import NotificationBell from "@/components/NotificationBell";
+@@ -70,7 +72,20 @@ export default function CustomerDashboard() {
+   const { t } = useLanguage();
+ 
+   const [user, setUser] = useState<User | null>(null);
++  const { section, navigate } = useDashboardNavigation();
+   const [menuOpen, setMenuOpen] = useState(false);
++  useEffect(() => {
++    function close(event: KeyboardEvent) {
++      if (event.key === "Escape" && menuOpen) {
++        setMenuOpen(false);
++        const trigger = Array.from(document.querySelectorAll<HTMLButtonElement>('button[aria-controls="customer-account-menu"]')).find((button) => button.getClientRects().length > 0);
++        trigger?.focus();
++      }
++    }
++    window.addEventListener("keydown", close);
++    return () => window.removeEventListener("keydown", close);
++  }, [menuOpen]);
++
+   const [tasks, setTasks] = useState<CustomerTask[]>([]);
+   const [tasksLoading, setTasksLoading] = useState(true);
+   const [taskError, setTaskError] = useState("");
+@@ -218,7 +233,7 @@ export default function CustomerDashboard() {
+   const completedTasks = tasks.filter((task) => task.status === "completed").length;
+ 
+   return (
+-    <main className="min-h-screen bg-[#f7f9fb] text-slate-900">
++    <main id="overview" tabIndex={-1} className="min-h-screen bg-[#f7f9fb] text-slate-900">
+ 
+       {/* HEADER */}
+ 
+@@ -235,14 +250,18 @@ export default function CustomerDashboard() {
+ 
+           <nav className="hidden items-center gap-7 text-sm font-bold text-slate-600 md:flex">
+             <a
+-              href="/dashboard"
++              href="#overview"
++                onClick={(event) => { event.preventDefault(); navigate("overview"); setMenuOpen(false); }}
++                aria-current={section === "overview" ? "location" : undefined}
+               className="text-[var(--navy)]"
+             >
+               {t("dashboard")}
+             </a>
+ 
+             <a
+-              href="/post-a-task"
++              href="#tasks"
++                onClick={(event) => { event.preventDefault(); navigate("tasks"); setMenuOpen(false); }}
++                aria-current={section === "tasks" ? "location" : undefined}
+               className="hover:text-[var(--navy)]"
+             >
+               {t("tasks")}
+@@ -250,6 +269,8 @@ export default function CustomerDashboard() {
+ 
+             <a
+               href="#messages"
++                onClick={(event) => { event.preventDefault(); navigate("messages"); setMenuOpen(false); }}
++                aria-current={section === "messages" ? "location" : undefined}
+               className="hover:text-[var(--navy)]"
+             >
+               {t("messages")}
+@@ -271,6 +292,8 @@ export default function CustomerDashboard() {
+               onClick={() => setMenuOpen((value) => !value)}
+               className="grid h-11 w-11 place-items-center rounded-full bg-[var(--navy)] font-black text-white"
+               aria-label="Account menu"
++              aria-expanded={menuOpen}
++              aria-controls="customer-account-menu"
+             >
+               {firstName.charAt(0).toUpperCase()}
+             </button>
+@@ -281,13 +304,15 @@ export default function CustomerDashboard() {
+             onClick={() => setMenuOpen((value) => !value)}
+             className="grid h-11 w-11 place-items-center rounded-xl border border-slate-200 text-2xl text-[var(--navy)] md:hidden"
+             aria-label="Open menu"
++            aria-expanded={menuOpen}
++            aria-controls="customer-account-menu"
+           >
+             ☰
+           </button>
+         </div>
+ 
+         {menuOpen && (
+-          <div className="absolute right-4 top-[68px] w-[280px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
++          <div id="customer-account-menu" className="absolute right-4 top-[68px] w-[280px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+ 
+             <div className="border-b border-slate-100 p-5">
+               <p className="font-black text-[var(--navy)]">
+@@ -300,15 +325,20 @@ export default function CustomerDashboard() {
+             </div>
+ 
+             <div className="grid p-2">
++              <div className="flex items-center gap-3 px-4 py-2 md:hidden"><RegionSelector /><NotificationBell /></div>
+               <a
+-                href="/dashboard"
++                href="#overview"
++                onClick={(event) => { event.preventDefault(); navigate("overview"); setMenuOpen(false); }}
++                aria-current={section === "overview" ? "location" : undefined}
+                 className="rounded-xl px-4 py-3 text-sm font-bold hover:bg-slate-50"
+               >
+                 {t("dashboard")}
+               </a>
+ 
+               <a
+-                href="/post-a-task"
++                href="#tasks"
++                onClick={(event) => { event.preventDefault(); navigate("tasks"); setMenuOpen(false); }}
++                aria-current={section === "tasks" ? "location" : undefined}
+                 className="rounded-xl px-4 py-3 text-sm font-bold hover:bg-slate-50"
+               >
+                 {t("tasks")}
+@@ -316,6 +346,8 @@ export default function CustomerDashboard() {
+ 
+               <a
+                 href="#messages"
++                onClick={(event) => { event.preventDefault(); navigate("messages"); setMenuOpen(false); }}
++                aria-current={section === "messages" ? "location" : undefined}
+                 className="rounded-xl px-4 py-3 text-sm font-bold hover:bg-slate-50"
+               >
+                 {t("messages")}
+@@ -323,6 +355,8 @@ export default function CustomerDashboard() {
+ 
+               <a
+                 href="#profile"
++                onClick={(event) => { event.preventDefault(); navigate("profile"); setMenuOpen(false); }}
++                aria-current={section === "profile" ? "location" : undefined}
+                 className="rounded-xl px-4 py-3 text-sm font-bold hover:bg-slate-50"
+               >
+                 Account settings
+@@ -403,7 +437,7 @@ export default function CustomerDashboard() {
+ 
+           {/* TASK AREA */}
+ 
+-          <article className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
++          <article id="tasks" tabIndex={-1} className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+ 
+             <div className="flex items-center justify-between gap-4">
+               <div>
+@@ -417,7 +451,7 @@ export default function CustomerDashboard() {
+               </div>
+ 
+               <a
+-                href="/post-a-task"
++                href="#tasks" onClick={(event) => { event.preventDefault(); navigate("tasks"); }}
+                 className="hidden text-sm font-black text-[var(--green)] sm:block"
+               >
+                 View all →
+@@ -507,6 +541,7 @@ export default function CustomerDashboard() {
+ 
+           <article
+             id="profile"
++            tabIndex={-1}
+             className="rounded-[28px] border border-slate-200 bg-white p-6 sm:p-8"
+           >
+             <div className="flex items-start justify-between gap-4">
+@@ -560,6 +595,7 @@ export default function CustomerDashboard() {
+ 
+           <article
+             id="messages"
++            tabIndex={-1}
+             className="rounded-[28px] border border-slate-200 bg-white p-6 sm:p-8"
+           >
+             <p className="text-xs font-black uppercase tracking-[0.17em] text-[var(--green)]">
+@@ -570,20 +606,7 @@ export default function CustomerDashboard() {
+               Conversations
+             </h2>
+ 
+-            <div className="mt-8 text-center">
+-              <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-slate-100 text-2xl">
+-                💬
+-              </div>
+-
+-              <h3 className="mt-4 font-black text-[var(--navy)]">
+-                No messages yet
+-              </h3>
+-
+-              <p className="mt-2 text-sm leading-6 text-slate-500">
+-                Conversations with Helpers will appear here once you
+-                start booking tasks.
+-              </p>
+-            </div>
++            <MessagesPanel />
+           </article>
+         </section>
+       </div>
+diff --git a/web-app/app/globals.css b/web-app/app/globals.css
+index e543dec..09161ce 100644
+--- a/web-app/app/globals.css
++++ b/web-app/app/globals.css
+@@ -15,7 +15,44 @@ body {
+   color: var(--foreground);
+   font-family: Arial, Helvetica, sans-serif;
+ }
+-button, a, input { transition: all 160ms ease; }
++button, a, input, select, textarea, summary {
++  transition: background-color 160ms ease, border-color 160ms ease,
++    color 160ms ease, box-shadow 160ms ease, opacity 160ms ease,
++    transform 160ms ease, filter 160ms ease;
++}
++button:not(:disabled), a[href]:not([aria-disabled="true"]),
++select:not(:disabled), summary { cursor: pointer; }
++button:disabled, select:disabled, [aria-disabled="true"] {
++  cursor: not-allowed;
++}
++button:disabled { opacity: .55; }
++@media (hover: hover) {
++  button:not(:disabled):hover, a[href]:not([aria-disabled="true"]):hover {
++    filter: brightness(.96);
++  }
++}
++button:not(:disabled):active, a[href]:not([aria-disabled="true"]):active {
++  filter: brightness(.9);
++}
++button:focus-visible, a[href]:focus-visible, input:focus-visible,
++select:focus-visible, textarea:focus-visible, summary:focus-visible {
++  outline: 3px solid var(--green);
++  outline-offset: 3px;
++}
++nav [aria-current="location"] {
++  text-decoration: underline;
++  text-decoration-color: var(--green);
++  text-underline-offset: .4em;
++  text-decoration-thickness: 2px;
++}
++[id][tabindex="-1"] { scroll-margin-top: 6rem; }
++@media (prefers-reduced-motion: reduce) {
++  html { scroll-behavior: auto; }
++  *, *::before, *::after {
++    transition-duration: 0.01ms !important;
++    animation-duration: 0.01ms !important;
++  }
++}
+ ::selection { background: rgba(47,173,69,.2); }
+ 
+ .input {
+diff --git a/web-app/app/helper/dashboard/page.tsx b/web-app/app/helper/dashboard/page.tsx
+index e90db3e..1c16681 100644
+--- a/web-app/app/helper/dashboard/page.tsx
++++ b/web-app/app/helper/dashboard/page.tsx
+@@ -1,5 +1,7 @@
+ "use client";
+ 
++import MessagesPanel from "@/components/MessagesPanel";
++import { useDashboardNavigation } from "@/lib/dashboard-navigation";
+ import { FormEvent, useEffect, useMemo, useState } from "react";
+ import { useRouter } from "next/navigation";
+ import NotificationBell from "@/components/NotificationBell";
+@@ -165,7 +167,20 @@ export default function HelperDashboardPage() {
+   const [loading, setLoading] = useState(true);
+   const [error, setError] = useState("");
+   const [loggingOut, setLoggingOut] = useState(false);
++  const { section, navigate } = useDashboardNavigation();
+   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
++  useEffect(() => {
++    function close(event: KeyboardEvent) {
++      if (event.key === "Escape" && mobileMenuOpen) {
++        setMobileMenuOpen(false);
++        const trigger = Array.from(document.querySelectorAll<HTMLButtonElement>('button[aria-controls="helper-mobile-menu"]')).find((button) => button.getClientRects().length > 0);
++        trigger?.focus();
++      }
++    }
++    window.addEventListener("keydown", close);
++    return () => window.removeEventListener("keydown", close);
++  }, [mobileMenuOpen]);
++
+   const [documentType, setDocumentType] = useState("identity_document");
+   const [documentName, setDocumentName] = useState("");
+   const [documentNumber, setDocumentNumber] = useState("");
+@@ -571,7 +586,7 @@ export default function HelperDashboardPage() {
+   }
+ 
+   return (
+-    <main className="min-h-screen bg-[#f7f9fc] text-slate-900">
++    <main id="overview" tabIndex={-1} className="min-h-screen bg-[#f7f9fc] text-slate-900">
+       <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur">
+         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 sm:px-8">
+           <div className="flex items-center gap-9">
+@@ -591,6 +606,8 @@ export default function HelperDashboardPage() {
+             <nav className="hidden items-center gap-6 lg:flex">
+               <button
+                 type="button"
++                onClick={() => navigate("overview")}
++                aria-current={section === "overview" ? "location" : undefined}
+                 className="font-bold text-[#082f5b]"
+               >
+                 {t("dashboard")}
+@@ -598,6 +615,8 @@ export default function HelperDashboardPage() {
+ 
+               <button
+                 type="button"
++                onClick={() => navigate("opportunities")}
++                aria-current={section === "opportunities" ? "location" : undefined}
+                 className="font-semibold text-slate-600 transition hover:text-[#082f5b]"
+               >
+                 {t("opportunities")}
+@@ -605,6 +624,8 @@ export default function HelperDashboardPage() {
+ 
+               <button
+                 type="button"
++                onClick={() => navigate("jobs")}
++                aria-current={section === "jobs" ? "location" : undefined}
+                 className="font-semibold text-slate-600 transition hover:text-[#082f5b]"
+               >
+                 {t("jobs")}
+@@ -612,6 +633,8 @@ export default function HelperDashboardPage() {
+ 
+               <button
+                 type="button"
++                onClick={() => navigate("messages")}
++                aria-current={section === "messages" ? "location" : undefined}
+                 className="font-semibold text-slate-600 transition hover:text-[#082f5b]"
+               >
+                 {t("messages")}
+@@ -619,6 +642,8 @@ export default function HelperDashboardPage() {
+ 
+               <button
+                 type="button"
++                onClick={() => navigate("earnings")}
++                aria-current={section === "earnings" ? "location" : undefined}
+                 className="font-semibold text-slate-600 transition hover:text-[#082f5b]"
+               >
+                 {t("earnings")}
+@@ -663,26 +688,30 @@ export default function HelperDashboardPage() {
+           <button
+             type="button"
+             onClick={() => setMobileMenuOpen((current) => !current)}
+-            className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-xl text-[#082f5b] sm:hidden"
++            className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-xl text-[#082f5b] sm:hidden"
+             aria-label="Open menu"
++            aria-expanded={mobileMenuOpen}
++            aria-controls="helper-mobile-menu"
+           >
+             ☰
+           </button>
+         </div>
+ 
+         {mobileMenuOpen && (
+-          <div className="border-t border-slate-100 bg-white px-5 py-4 sm:hidden">
++          <div id="helper-mobile-menu" className="border-t border-slate-100 bg-white px-5 py-4 sm:hidden">
+             <div className="space-y-1">
+               <p className="mb-3 font-bold text-[#082f5b]">
+                 {data.user.name}
+               </p>
+ 
+-              <button
+-                type="button"
+-                className="block w-full rounded-lg bg-slate-50 px-3 py-2 text-left font-semibold text-[#082f5b]"
+-              >
+-                {t("dashboard")}
+-              </button>
++<nav aria-label="Helper mobile navigation" className="grid gap-1">
++                <button type="button" onClick={() => { navigate("overview"); setMobileMenuOpen(false); }} aria-current={section === "overview" ? "location" : undefined} className="rounded-lg px-3 py-2 text-left font-semibold text-slate-600">{t("dashboard")}</button>
++                <button type="button" onClick={() => { navigate("opportunities"); setMobileMenuOpen(false); }} aria-current={section === "opportunities" ? "location" : undefined} className="rounded-lg px-3 py-2 text-left font-semibold text-slate-600">{t("opportunities")}</button>
++                <button type="button" onClick={() => { navigate("jobs"); setMobileMenuOpen(false); }} aria-current={section === "jobs" ? "location" : undefined} className="rounded-lg px-3 py-2 text-left font-semibold text-slate-600">{t("jobs")}</button>
++                <button type="button" onClick={() => { navigate("messages"); setMobileMenuOpen(false); }} aria-current={section === "messages" ? "location" : undefined} className="rounded-lg px-3 py-2 text-left font-semibold text-slate-600">{t("messages")}</button>
++                <button type="button" onClick={() => { navigate("earnings"); setMobileMenuOpen(false); }} aria-current={section === "earnings" ? "location" : undefined} className="rounded-lg px-3 py-2 text-left font-semibold text-slate-600">{t("earnings")}</button>
++              </nav>
++              <div className="flex items-center gap-3 py-2"><RegionSelector /><NotificationBell /></div>
+ 
+               <button
+                 type="button"
+@@ -703,6 +732,12 @@ export default function HelperDashboardPage() {
+           </div>
+         )}
+       </header>
++
++      <nav aria-label="Helper tablet navigation" className="hidden flex-wrap gap-5 border-b border-slate-200 bg-white px-5 py-3 sm:flex lg:hidden">
++        {[["dashboard", "overview"], ["opportunities", "opportunities"], ["jobs", "jobs"], ["messages", "messages"], ["earnings", "earnings"]].map(([label, id]) => (
++          <button key={id} type="button" onClick={() => navigate(id)} aria-current={section === id ? "location" : undefined} className="text-sm font-semibold text-slate-600">{t(label)}</button>
++        ))}
++      </nav>
+ 
+       <section className="bg-[#082f5b]">
+         <div className="mx-auto max-w-7xl px-5 py-9 sm:px-8 sm:py-11">
+@@ -737,7 +772,7 @@ export default function HelperDashboardPage() {
+         </div>
+       </section>
+ 
+-      <section className="mx-auto max-w-7xl px-5 py-8 sm:px-8 lg:py-10">
++      <section className="mx-auto max-w-7xl px-5 py-8 sm:px-8 lg:py-10">
+         {!canReceiveJobs && (
+           <div className="mb-8 overflow-hidden rounded-3xl border border-amber-200 bg-white shadow-sm">
+             <div className="flex flex-col gap-5 p-6 sm:p-7 lg:flex-row lg:items-center lg:justify-between">
+@@ -823,7 +858,7 @@ export default function HelperDashboardPage() {
+                 {marketplaceError}
+               </div>
+             )}
+-            <section className="rounded-3xl border border-slate-200 bg-white shadow-sm">
++            <section id="services" tabIndex={-1} className="rounded-3xl border border-slate-200 bg-white shadow-sm">
+               <div className="flex items-center justify-between gap-4 border-b border-slate-100 px-6 py-5 sm:px-7">
+                 <div>
+                   <h2 className="text-xl font-bold text-[#082f5b]">
+@@ -933,7 +968,7 @@ export default function HelperDashboardPage() {
+               )}
+             </section>
+ 
+-            <section className="rounded-3xl border border-slate-200 bg-white shadow-sm">
++            <section id="opportunities" tabIndex={-1} className="rounded-3xl border border-slate-200 bg-white shadow-sm">
+               <div className="flex items-center justify-between gap-4 border-b border-slate-100 px-6 py-5 sm:px-7">
+                 <div>
+                   <h2 className="text-xl font-bold text-[#082f5b]">
+@@ -991,7 +1026,7 @@ export default function HelperDashboardPage() {
+               )}
+             </section>
+ 
+-            <section className="rounded-3xl border border-slate-200 bg-white shadow-sm">
++            <section id="jobs" tabIndex={-1} className="rounded-3xl border border-slate-200 bg-white shadow-sm">
+               <div className="border-b border-slate-100 px-6 py-5 sm:px-7">
+                 <h2 className="text-xl font-bold text-[#082f5b]">
+                   {t("upcomingJobs")}
+@@ -1036,7 +1071,7 @@ export default function HelperDashboardPage() {
+               )}
+             </section>
+ 
+-            <section className="rounded-3xl border border-slate-200 bg-white shadow-sm">
++            <section id="earnings" tabIndex={-1} className="rounded-3xl border border-slate-200 bg-white shadow-sm">
+               <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5 sm:px-7">
+                 <div><h2 className="text-xl font-bold text-[#082f5b]">{t("completedJobs")}</h2><p className="mt-1 text-sm text-slate-500">Work history, earnings and reviews</p></div>
+                 <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">{completedJobs.length} completed</span>
+@@ -1237,26 +1272,12 @@ export default function HelperDashboardPage() {
+               </div>
+             </section>
+ 
+-            <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
++            <section id="messages" tabIndex={-1} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+               <h2 className="text-lg font-bold text-[#082f5b]">
+                 {t("messages")}
+               </h2>
+ 
+-              <div className="mt-5 flex gap-3">
+-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#eef3f8]">
+-                  💬
+-                </div>
+-
+-                <div>
+-                  <p className="font-semibold text-slate-700">
+-                    No new messages
+-                  </p>
+-
+-                  <p className="mt-1 text-sm leading-5 text-slate-500">
+-                    Customer and UrbanHelpHub messages will appear here.
+-                  </p>
+-                </div>
+-              </div>
++              <MessagesPanel />
+             </section>
+           </aside>
+         </div>
+diff --git a/web-app/app/layout.tsx b/web-app/app/layout.tsx
+index 1740b50..1fdec2d 100644
+--- a/web-app/app/layout.tsx
++++ b/web-app/app/layout.tsx
+@@ -1,13 +1,20 @@
+-import type { Metadata } from "next";
++import type { Metadata, Viewport } from "next";
+ import "./globals.css";
+ import LanguageProvider from "@/components/LanguageProvider";
++import PwaSupport from "@/components/PwaSupport";
+ 
+ export const metadata: Metadata = {
++  applicationName: "UrbanHelpHub",
++  manifest: "/manifest.webmanifest",
++  appleWebApp: { capable: true, title: "UrbanHelpHub", statusBarStyle: "default" },
++  icons: { apple: "/icons/icon-192.png" },
+   title: "UrbanHelpHub | Local Help Across Canada",
+   description:
+     "Find trusted local help for cleaning, moving, assembly, delivery, errands, home repairs and more across Canada.",
+ };
+ 
++export const viewport: Viewport = { themeColor: "#082f5b" };
++
+ export default function RootLayout({
+   children,
+ }: Readonly<{
+@@ -15,7 +22,7 @@ export default function RootLayout({
+ }>) {
+   return (
+     <html lang="en">
+-      <body><LanguageProvider>{children}</LanguageProvider></body>
++      <body><LanguageProvider>{children}<PwaSupport /></LanguageProvider></body>
+     </html>
+   );
+ }
+diff --git a/web-app/app/manifest.ts b/web-app/app/manifest.ts
+new file mode 100644
+index 0000000..a0d878b
+--- /dev/null
++++ b/web-app/app/manifest.ts
+@@ -0,0 +1,21 @@
++import type { MetadataRoute } from "next";
++
++// Absolute root paths match the existing cPanel frontend deployment.
++export default function manifest(): MetadataRoute.Manifest {
++  return {
++    id: "/",
++    name: "UrbanHelpHub",
++    short_name: "UrbanHelpHub",
++    description: "Trusted local help, wherever you are.",
++    start_url: "/",
++    scope: "/",
++    display: "standalone",
++    background_color: "#ffffff",
++    theme_color: "#082f5b",
++    icons: [
++      { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
++      { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
++      { src: "/icons/icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
++    ],
++  };
++}
+diff --git a/web-app/components/MessagesPanel.tsx b/web-app/components/MessagesPanel.tsx
+new file mode 100644
+index 0000000..3403358
+--- /dev/null
++++ b/web-app/components/MessagesPanel.tsx
+@@ -0,0 +1,120 @@
++"use client";
++
++import { FormEvent, useState } from "react";
++import { API_URL } from "@/lib/api";
++
++// Response shape of the existing GET /api/messages endpoint.
++type Conversation = {
++  task_id: number;
++  title: string;
++  customer_name: string;
++  helper_name: string;
++  messages: { id: number; sender_name: string; message: string; created_at: string }[];
++};
++
++// GET /messages marks messages read, so fetch only after an explicit user action.
++export default function MessagesPanel() {
++  const [conversations, setConversations] = useState<Conversation[] | null>(null);
++  const [selected, setSelected] = useState("");
++  const [draft, setDraft] = useState("");
++  const [busy, setBusy] = useState(false);
++  const [error, setError] = useState("");
++  const [notice, setNotice] = useState("");
++  const conversation = conversations?.find((item) => String(item.task_id) === selected);
++
++  // Reuse the application’s existing auth storage; never persist messages offline.
++  function headers() {
++    const token = sessionStorage.getItem("urbanhelphub_token") || localStorage.getItem("urbanhelphub_token");
++    if (!token) throw new Error("Please sign in to view messages.");
++    return { Accept: "application/json", Authorization: `Bearer ${token}` };
++  }
++
++  async function load() {
++    setBusy(true);
++    setError("");
++    try {
++      const response = await fetch(`${API_URL}/messages`, { headers: headers(), cache: "no-store" });
++      const payload = await response.json();
++      if (!response.ok || !payload.success) throw new Error(payload.message || "Unable to load conversations.");
++      setConversations(payload.data);
++    } catch (caught) {
++      setError(caught instanceof Error ? caught.message : "Unable to load conversations.");
++    } finally {
++      setBusy(false);
++    }
++  }
++
++  // The API checks task membership. Reload only after a successful write.
++  async function send(event: FormEvent) {
++    event.preventDefault();
++    if (!conversation || !draft.trim() || busy) return;
++    setBusy(true);
++    setError("");
++    setNotice("");
++    try {
++      const response = await fetch(`${API_URL}/tasks/${conversation.task_id}/messages`, {
++        method: "POST",
++        headers: { ...headers(), "Content-Type": "application/json" },
++        body: JSON.stringify({ message: draft.trim() }),
++        cache: "no-store",
++      });
++      const payload = await response.json();
++      if (!response.ok || !payload.success) throw new Error(payload.message || "Unable to send your message.");
++      setDraft("");
++      setNotice("Message sent.");
++      await load();
++    } catch (caught) {
++      setError(caught instanceof Error ? caught.message : "Unable to send your message.");
++    } finally {
++      setBusy(false);
++    }
++  }
++
++  return (
++    <div className="mt-5">
++      <button type="button" onClick={load} disabled={busy} aria-busy={busy}
++        className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold text-[var(--navy)] disabled:opacity-50">
++        {busy ? "Loading…" : conversations ? "Refresh conversations" : "Open conversations"}
++      </button>
++      {error && <p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}
++      {notice && <p role="status" className="mt-3 text-sm text-green-700">{notice}</p>}
++      {conversations?.length === 0 && <p className="mt-4 text-sm text-slate-500">No conversations yet. Messages become available once a Helper is confirmed for a task.</p>}
++      {!!conversations?.length && (
++        <div className="mt-4 space-y-4">
++          <label className="block text-sm font-bold text-[var(--navy)]">
++            Conversation
++            <select className="input mt-2" aria-label="Conversation" value={selected} disabled={busy}
++              onChange={(event) => { setSelected(event.target.value); setDraft(""); setNotice(""); }}>
++              <option value="">Choose a task</option>
++              {conversations.map((item) => <option key={item.task_id} value={item.task_id}>{item.title} — {item.customer_name} / {item.helper_name}</option>)}
++            </select>
++          </label>
++          {conversation && (
++            <>
++              <div className="max-h-72 space-y-3 overflow-y-auto rounded-xl bg-slate-50 p-3" aria-label="Conversation messages">
++                {conversation.messages.length === 0 && <p className="text-sm text-slate-500">No messages in this conversation yet.</p>}
++                {conversation.messages.map((message) => (
++                  <article key={message.id} className="rounded-xl bg-white p-3 text-sm">
++                    <p className="font-bold text-[var(--navy)]">{message.sender_name}</p>
++                    <p className="mt-1 whitespace-pre-wrap break-words text-slate-700">{message.message}</p>
++                  </article>
++                ))}
++              </div>
++              <form onSubmit={send} className="space-y-3">
++                <label className="block text-sm font-bold text-[var(--navy)]">
++                  Message
++                  <textarea className="input mt-2" value={draft} maxLength={2000} required disabled={busy}
++                    onChange={(event) => setDraft(event.target.value)} rows={3} />
++                </label>
++                <button type="submit" disabled={busy || !draft.trim()} aria-busy={busy}
++                  className="rounded-xl bg-[var(--green)] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">
++                  {busy ? "Sending…" : "Send message"}
++                </button>
++              </form>
++            </>
++          )}
++        </div>
++      )}
++    </div>
++  );
++}
+diff --git a/web-app/components/NotificationBell.tsx b/web-app/components/NotificationBell.tsx
+index 2f409aa..0330d92 100644
+--- a/web-app/components/NotificationBell.tsx
++++ b/web-app/components/NotificationBell.tsx
+@@ -1,6 +1,6 @@
+ "use client";
+ 
+-import { useEffect, useRef, useState } from "react";
++import { useEffect, useId, useRef, useState } from "react";
+ import { useRouter } from "next/navigation";
+ 
+ import { API_URL } from "@/lib/api";
+@@ -33,6 +33,10 @@ function timeAgo(value: string) {
+ 
+ export default function NotificationBell() {
+   const router = useRouter();
++  const panelId = useId();
++  const trigger = useRef<HTMLButtonElement>(null);
++  const [error, setError] = useState("");
++  const [busy, setBusy] = useState<string | null>(null);
+   const [open, setOpen] = useState(false);
+   const [items, setItems] = useState<NotificationItem[]>([]);
+   const [unread, setUnread] = useState(0);
+@@ -45,57 +49,102 @@ export default function NotificationBell() {
+     try {
+       const response = await fetch(`${API_URL}/notifications`, {
+         headers: { Accept: "application/json", Authorization: `Bearer ${authToken}` },
++        cache: "no-store",
+       });
+       const payload = await response.json();
++      if (!response.ok || !payload.success) throw new Error("Unable to load notifications.");
+       if (response.ok && payload.success) {
++        setError("");
+         setItems(payload.data.notifications || []);
+         setUnread(Number(payload.data.unread_count || 0));
+       }
++    } catch {
++      setError("Unable to load notifications. Try refreshing them.");
+     } finally {
+       setLoading(false);
+     }
+   }
+ 
+   useEffect(() => {
+-    load();
++    const initial = window.setTimeout(load, 0);
+     const timer = window.setInterval(load, 30000);
+-    return () => window.clearInterval(timer);
++    return () => { window.clearTimeout(initial); window.clearInterval(timer); };
+   }, []);
+ 
+   useEffect(() => {
+-    function close(event: MouseEvent) {
++    function close(event: PointerEvent) {
+       if (container.current && !container.current.contains(event.target as Node)) setOpen(false);
+     }
+-    document.addEventListener("mousedown", close);
+-    return () => document.removeEventListener("mousedown", close);
++    document.addEventListener("pointerdown", close);
++    return () => document.removeEventListener("pointerdown", close);
+   }, []);
+ 
+-  async function markRead(item: NotificationItem) {
+-    if (!item.read_at) {
+-      const authToken = token();
+-      await fetch(`${API_URL}/notifications/${item.id}/read`, {
+-        method: "PUT",
+-        headers: { Accept: "application/json", Authorization: `Bearer ${authToken}` },
+-      });
+-      setItems((current) => current.map((entry) => entry.id === item.id ? { ...entry, read_at: new Date().toISOString() } : entry));
+-      setUnread((current) => Math.max(0, current - 1));
++  useEffect(() => {
++    function close(event: KeyboardEvent) {
++      if (event.key === "Escape" && open) {
++        event.preventDefault();
++        event.stopPropagation();
++        setOpen(false);
++        trigger.current?.focus();
++      }
+     }
+-    if (item.action_url) router.push(item.action_url);
++    document.addEventListener("keydown", close);
++    return () => document.removeEventListener("keydown", close);
++  }, [open]);
++
++  // Keep read state consistent with the API before following a notification.
++  async function markRead(item: NotificationItem) {
++    if (busy) return;
++    setBusy(String(item.id));
++    setError("");
++    try {
++      if (!item.read_at) {
++        const authToken = token();
++        const response = await fetch(`${API_URL}/notifications/${item.id}/read`, {
++          method: "PUT", cache: "no-store",
++          headers: { Accept: "application/json", Authorization: `Bearer ${authToken}` },
++        });
++        if (!response.ok) throw new Error("Unable to mark the notification read.");
++        setItems((current) => current.map((entry) => entry.id === item.id ? { ...entry, read_at: new Date().toISOString() } : entry));
++        setUnread((current) => Math.max(0, current - 1));
++      }
++      if (item.action_url) {
++        const url = new URL(item.action_url, window.location.origin);
++        if (url.origin !== window.location.origin) throw new Error("This notification link is unavailable.");
++        // The backend emits legacy message paths; use the implemented dashboard panels.
++        const path = url.pathname === "/messages" ? "/dashboard" : url.pathname === "/helper/messages" ? "/helper/dashboard" : url.pathname;
++        const hash = path !== url.pathname ? "#messages" : url.hash;
++        router.push(path + url.search + hash);
++        setOpen(false);
++      }
++    } catch (caught) {
++      setError(caught instanceof Error ? caught.message : "Unable to open notification.");
++    } finally { setBusy(null); }
+   }
+ 
+   async function markAllRead() {
+-    const authToken = token();
+-    await fetch(`${API_URL}/notifications/read-all`, {
+-      method: "PUT",
+-      headers: { Accept: "application/json", Authorization: `Bearer ${authToken}` },
+-    });
+-    setItems((current) => current.map((item) => ({ ...item, read_at: item.read_at || new Date().toISOString() })));
+-    setUnread(0);
++    if (busy) return;
++    setBusy("all");
++    setError("");
++    try {
++      const response = await fetch(`${API_URL}/notifications/read-all`, {
++        method: "PUT", cache: "no-store",
++        headers: { Accept: "application/json", Authorization: `Bearer ${token()}` },
++      });
++      if (!response.ok) throw new Error("Unable to mark notifications read.");
++      setItems((current) => current.map((item) => ({ ...item, read_at: item.read_at || new Date().toISOString() })));
++      setUnread(0);
++    } catch (caught) {
++      setError(caught instanceof Error ? caught.message : "Unable to update notifications.");
++    } finally { setBusy(null); }
+   }
+ 
+   return (
+     <div ref={container} className="relative">
+       <button
++        ref={trigger}
++        aria-expanded={open}
++        aria-controls={panelId}
+         type="button"
+         onClick={() => setOpen((value) => !value)}
+         className="relative grid h-10 w-10 place-items-center rounded-full border border-slate-200 bg-white text-xl text-[#082f5b] transition hover:bg-slate-50"
+@@ -110,14 +159,15 @@ export default function NotificationBell() {
+       </button>
+ 
+       {open && (
+-        <div className="absolute right-0 top-12 z-[80] w-[min(92vw,380px)] overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-2xl">
++        <div id={panelId} className="absolute right-0 top-12 z-[80] w-[min(92vw,380px)] overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-2xl">
+           <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+             <div>
+               <p className="font-black text-[#082f5b]">Notifications</p>
+               <p className="text-xs text-slate-500">{unread} unread</p>
+             </div>
+-            {unread > 0 && <button type="button" onClick={markAllRead} className="text-xs font-bold text-green-700 hover:underline">Mark all read</button>}
++            {unread > 0 && <button type="button" onClick={markAllRead} disabled={!!busy} aria-busy={busy === "all"} className="text-xs font-bold text-green-700 hover:underline">Mark all read</button>}
+           </div>
++          {error && <div className="p-4 text-sm text-red-700"><p role="alert">{error}</p><button type="button" onClick={load} disabled={!!busy} className="mt-2 font-bold underline">Refresh notifications</button></div>}
+           <div className="max-h-[420px] overflow-y-auto">
+             {loading ? (
+               <p className="p-6 text-center text-sm text-slate-500">Loading notifications…</p>
+@@ -128,6 +178,8 @@ export default function NotificationBell() {
+                 key={item.id}
+                 type="button"
+                 onClick={() => markRead(item)}
++                disabled={!!busy}
++                aria-busy={busy === String(item.id)}
+                 className={`block w-full border-b border-slate-100 px-4 py-4 text-left transition hover:bg-slate-50 ${item.read_at ? "bg-white" : "bg-green-50/60"}`}
+               >
+                 <div className="flex gap-3">
+diff --git a/web-app/components/PwaSupport.tsx b/web-app/components/PwaSupport.tsx
+new file mode 100644
+index 0000000..4e1d64c
+--- /dev/null
++++ b/web-app/components/PwaSupport.tsx
+@@ -0,0 +1,127 @@
++"use client";
++
++import { useEffect, useState, useSyncExternalStore } from "react";
++
++type InstallEvent = Event & {
++  prompt: () => Promise<void>;
++  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
++};
++
++// Store only a user preference, never credentials or account data.
++const DISMISS_KEY = "urbanhelphub-install-dismissed-v1";
++
++function isStandalone() {
++  return window.matchMedia("(display-mode: standalone)").matches ||
++    Boolean((navigator as Navigator & { standalone?: boolean }).standalone);
++}
++
++// iPadOS may identify itself as a Mac; touch capability distinguishes tablets.
++function installStatus() {
++  if (isStandalone()) return "hidden";
++  try { if (localStorage.getItem(DISMISS_KEY) === "1") return "hidden"; } catch { /* Storage is optional. */ }
++  const safari = /Safari/.test(navigator.userAgent) && !/CriOS|FxiOS|EdgiOS|OPiOS|Chrome|Android/.test(navigator.userAgent);
++  const appleMobile = /iPhone|iPad|iPod/.test(navigator.userAgent) ||
++    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
++  return appleMobile && safari ? "ios" : "browser";
++}
++
++function subscribeStatus(callback: () => void) {
++  const display = window.matchMedia("(display-mode: standalone)");
++  display.addEventListener("change", callback);
++  window.addEventListener("storage", callback);
++  return () => { display.removeEventListener("change", callback); window.removeEventListener("storage", callback); };
++}
++
++export default function PwaSupport() {
++  const [installEvent, setInstallEvent] = useState<InstallEvent | null>(null);
++  // The server snapshot is hidden to avoid hydration mismatches and prompt flashes.
++  const status = useSyncExternalStore(subscribeStatus, installStatus, () => "hidden");
++  const ios = status === "ios";
++  const [hidden, setHidden] = useState(false);
++  const [busy, setBusy] = useState(false);
++  const [error, setError] = useState("");
++
++  useEffect(() => {
++    let dismissed = false;
++    try { dismissed = localStorage.getItem(DISMISS_KEY) === "1"; } catch { /* Storage can be unavailable in private browsing. */ }
++
++    // Keep the browser event for one user-initiated native prompt.
++    function beforeInstall(event: Event) {
++      event.preventDefault();
++      if (!dismissed && !isStandalone()) setInstallEvent(event as InstallEvent);
++    }
++    function appInstalled() { setHidden(true); setInstallEvent(null); }
++    const display = window.matchMedia("(display-mode: standalone)");
++    function displayChanged() { if (isStandalone()) appInstalled(); }
++    window.addEventListener("beforeinstallprompt", beforeInstall);
++    window.addEventListener("appinstalled", appInstalled);
++    display.addEventListener("change", displayChanged);
++
++    let registration: ServiceWorkerRegistration | undefined;
++    let disposed = false;
++    function checkForUpdate() {
++      if (document.visibilityState === "visible") void registration?.update().catch(() => {});
++    }
++    // Development stays worker-free; update checks never force a page reload.
++    if ("serviceWorker" in navigator && window.isSecureContext && process.env.NODE_ENV === "production") {
++      void navigator.serviceWorker.register("/sw.js", { scope: "/", updateViaCache: "none" })
++        .then((result) => { if (!disposed) { registration = result; checkForUpdate(); } })
++        .catch(() => { /* A blocked service worker must not break the application. */ });
++    }
++    document.addEventListener("visibilitychange", checkForUpdate);
++    const updateTimer = window.setInterval(checkForUpdate, 60 * 60 * 1000);
++    return () => {
++      disposed = true;
++      window.removeEventListener("beforeinstallprompt", beforeInstall);
++      window.removeEventListener("appinstalled", appInstalled);
++      display.removeEventListener("change", displayChanged);
++      document.removeEventListener("visibilitychange", checkForUpdate);
++      window.clearInterval(updateTimer);
++    };
++  }, []);
++
++  function dismiss() {
++    try { localStorage.setItem(DISMISS_KEY, "1"); } catch { /* Hide for this visit even if storage is blocked. */ }
++    setHidden(true);
++    setInstallEvent(null);
++  }
++
++  // Browser eligibility is required: this handler cannot force installation.
++  async function install() {
++    if (!installEvent || busy || isStandalone()) return;
++    setBusy(true);
++    setError("");
++    try {
++      await installEvent.prompt();
++      const choice = await installEvent.userChoice;
++      if (choice.outcome === "accepted") setHidden(true);
++      else dismiss();
++      setInstallEvent(null);
++    } catch {
++      setError("Installation is unavailable right now. Please try again later.");
++      setInstallEvent(null);
++    } finally {
++      setBusy(false);
++    }
++  }
++
++  if (status === "hidden" || hidden || (!installEvent && !ios && !error)) return null;
++  return (
++    <aside aria-label="Install UrbanHelpHub" className="fixed bottom-4 right-4 z-[100] max-w-[min(360px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-4 shadow-lg">
++      <div className="flex items-start gap-3">
++        <div className="min-w-0 flex-1">
++          <p className="text-sm font-bold text-[var(--navy)]">Install UrbanHelpHub</p>
++          {ios ? <p className="mt-1 text-sm text-slate-600">In Safari, tap Share, then Add to Home Screen.</p> :
++            <p className="mt-1 text-xs text-slate-500">Keep local help one tap away.</p>}
++          {installEvent && <button type="button" onClick={install} disabled={busy} aria-busy={busy}
++            className="mt-3 rounded-xl bg-[var(--green)] px-4 py-2 text-sm font-bold text-white disabled:opacity-50">
++            {busy ? "Opening…" : "Install app"}
++          </button>}
++          {error && <p role="status" className="mt-2 text-sm text-slate-600">{error}</p>}
++        </div>
++        <button type="button" onClick={dismiss} aria-label="Dismiss installation suggestion"
++          className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-600 hover:bg-slate-100">×</button>
++      </div>
++    </aside>
++  );
++}
+diff --git a/web-app/components/RegionSelector.tsx b/web-app/components/RegionSelector.tsx
+index 1b45abf..b5be368 100644
+--- a/web-app/components/RegionSelector.tsx
++++ b/web-app/components/RegionSelector.tsx
+@@ -44,13 +44,26 @@ export default function RegionSelector() {
+   const region = REGIONS.find((item) => item.countryCode === countryCode) || REGIONS[1];
+ 
+   useEffect(() => {
+-    function close(event: MouseEvent) {
++    function close(event: PointerEvent) {
+       if (!wrapper.current?.contains(event.target as Node)) setOpen(false);
+     }
+-    document.addEventListener("mousedown", close);
+-    return () => document.removeEventListener("mousedown", close);
++    document.addEventListener("pointerdown", close);
++    return () => document.removeEventListener("pointerdown", close);
+   }, []);
+ 
++  useEffect(() => {
++    function close(event: KeyboardEvent) {
++      if (event.key === "Escape" && open) {
++        event.preventDefault();
++        event.stopPropagation();
++        setOpen(false);
++        wrapper.current?.querySelector<HTMLButtonElement>("button")?.focus();
++      }
++    }
++    document.addEventListener("keydown", close);
++    return () => document.removeEventListener("keydown", close);
++  }, [open]);
++
+   async function choose(nextCountryCode: string) {
+     const token = getToken();
+     if (!token || saving || nextCountryCode === countryCode) {
+diff --git a/web-app/lib/dashboard-navigation.ts b/web-app/lib/dashboard-navigation.ts
+new file mode 100644
+index 0000000..874192e
+--- /dev/null
++++ b/web-app/lib/dashboard-navigation.ts
+@@ -0,0 +1,50 @@
++"use client";
++
++import { useEffect, useSyncExternalStore } from "react";
++
++function subscribe(callback: () => void) {
++  window.addEventListener("hashchange", callback);
++  return () => window.removeEventListener("hashchange", callback);
++}
++
++/** Shares section selection without changing routes or fetching account data.
++ * Destinations must expose an id and tabIndex=-1 so keyboard focus follows navigation.
++ */
++export function useDashboardNavigation(defaultSection = "overview") {
++  const section = useSyncExternalStore(
++    subscribe,
++    () => window.location.hash.slice(1) || defaultSection,
++    () => defaultSection,
++  );
++
++  useEffect(() => {
++    if (!window.location.hash) return;
++    function focusTarget() {
++      const target = document.getElementById(section);
++      if (!target) return false;
++      target.focus({ preventScroll: true });
++      target.scrollIntoView({ block: "start" });
++      return true;
++    }
++    if (focusTarget()) return;
++    // Authenticated dashboards render after their data arrives.
++    const observer = new MutationObserver(() => { if (focusTarget()) observer.disconnect(); });
++    observer.observe(document.body, { childList: true, subtree: true });
++    return () => observer.disconnect();
++  }, [section]);
++
++  function navigate(id: string) {
++    const target = document.getElementById(id);
++    if (!target) return;
++    // replaceState does not emit hashchange; notify subscribers explicitly.
++    window.history.replaceState(null, "", `#${id}`);
++    window.dispatchEvent(new HashChangeEvent("hashchange"));
++    target.focus({ preventScroll: true });
++    target.scrollIntoView({
++      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth",
++      block: "start",
++    });
++  }
++
++  return { section, navigate };
++}
+diff --git a/web-app/next.config.ts b/web-app/next.config.ts
+index e9ffa30..5bcd3c4 100644
+--- a/web-app/next.config.ts
++++ b/web-app/next.config.ts
+@@ -1,7 +1,23 @@
+ import type { NextConfig } from "next";
+ 
+ const nextConfig: NextConfig = {
+-  /* config options here */
++  // Browsers must discover updated worker code instead of a cached deployment.
++  async headers() {
++    return [
++      {
++        source: "/sw.js",
++        headers: [
++          { key: "Cache-Control", value: "no-store, max-age=0" },
++          { key: "Service-Worker-Allowed", value: "/" },
++          { key: "X-Content-Type-Options", value: "nosniff" },
++        ],
++      },
++      {
++        source: "/manifest.webmanifest",
++        headers: [{ key: "Cache-Control", value: "no-cache" }],
++      },
++    ];
++  },
+ };
+ 
+ export default nextConfig;
+diff --git a/web-app/public/icons/icon-192.png b/web-app/public/icons/icon-192.png
+new file mode 100644
+index 0000000000000000000000000000000000000000..5cb0bb9df7219effc0fdc8d36aaa7bc814f58641
+GIT binary patch
+literal 7790
+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
+QAIN~0%33cf6wO2a2me5l5C8xG
+
+literal 0
+HcmV?d00001
+
+diff --git a/web-app/public/icons/icon-512.png b/web-app/public/icons/icon-512.png
+new file mode 100644
+index 0000000000000000000000000000000000000000..1d0325d042742248ec070176367a15793e1cf116
+GIT binary patch
+literal 32080
+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
+
+literal 0
+HcmV?d00001
+
+diff --git a/web-app/public/icons/icon-maskable-512.png b/web-app/public/icons/icon-maskable-512.png
+new file mode 100644
+index 0000000000000000000000000000000000000000..4a5f32c11f673faa4d40cd5fb49c17ef1afe150a
+GIT binary patch
+literal 24281
+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
+
+literal 0
+HcmV?d00001
+
+diff --git a/web-app/public/offline.html b/web-app/public/offline.html
+new file mode 100644
+index 0000000..6db2922
+--- /dev/null
++++ b/web-app/public/offline.html
+@@ -0,0 +1,23 @@
++<!doctype html>
++<html lang="en">
++<head>
++  <meta charset="utf-8">
++  <meta name="viewport" content="width=device-width, initial-scale=1">
++  <meta name="theme-color" content="#082f5b">
++  <title>UrbanHelpHub — Offline</title>
++  <style>
++    body{margin:0;padding:24px;font-family:Arial,Helvetica,sans-serif;background:#fff;color:#082f5b}
++    main{max-width:440px;margin:15vh auto;text-align:center}
++    img{max-width:260px;width:100%;height:auto}
++    p{line-height:1.6;color:#475569}
++    a{display:inline-block;padding:12px 24px;border-radius:12px;background:#2fad45;color:white;font-weight:bold;text-decoration:none;cursor:pointer}
++    a:hover{filter:brightness(.95)}a:active{filter:brightness(.9)}a:focus-visible{outline:3px solid #082f5b;outline-offset:4px}
++  </style>
++</head>
++<body><main>
++  <h1>UrbanHelpHub</h1>
++  <h2>You’re offline</h2>
++  <p>Reconnect to view tasks, messages and account information. No private account data is stored for offline use.</p>
++  <a href="/">Try again</a>
++</main></body>
++</html>
+diff --git a/web-app/public/sw.js b/web-app/public/sw.js
+new file mode 100644
+index 0000000..32b2b6f
+--- /dev/null
++++ b/web-app/public/sw.js
+@@ -0,0 +1,41 @@
++/* Only these public, self-contained assets may enter Cache Storage.
++ * Never cache documents, API calls, cookies, tokens, Next.js chunks, or Stripe.
++ * Bump this version whenever the offline page or icons change.
++ */
++const CACHE = "urbanhelphub-public-v1";
++const PUBLIC_ASSETS = ["/offline.html", "/icons/icon-192.png", "/icons/icon-512.png", "/icons/icon-maskable-512.png"];
++
++self.addEventListener("install", (event) => {
++  event.waitUntil((async () => {
++    const cache = await caches.open(CACHE);
++    await cache.addAll(PUBLIC_ASSETS.map((path) => new Request(path, { cache: "reload", credentials: "omit" })));
++    await self.skipWaiting();
++  })());
++});
++
++self.addEventListener("activate", (event) => {
++  event.waitUntil((async () => {
++    const keys = await caches.keys();
++    await Promise.all(keys.filter((key) => key.startsWith("urbanhelphub-public-") && key !== CACHE).map((key) => caches.delete(key)));
++    await self.clients.claim();
++  })());
++});
++
++self.addEventListener("fetch", (event) => {
++  const request = event.request;
++  const url = new URL(request.url);
++  // Leave all other requests entirely to the browser's existing network behavior.
++  if (request.method !== "GET" || url.origin !== self.location.origin || url.search ||
++      request.headers.has("Authorization") || request.headers.has("RSC") ||
++      request.headers.has("Next-Router-Prefetch")) return;
++  if (PUBLIC_ASSETS.includes(url.pathname)) {
++    event.respondWith((async () => (await caches.match(url.pathname, { cacheName: CACHE })) || fetch(request))());
++    return;
++  }
++  // Only a failed homepage navigation gets the static, data-free fallback.
++  // Login, logout, dashboards, payment return URLs and APIs have no fallback.
++  if (request.mode === "navigate" && url.pathname === "/") {
++    event.respondWith(fetch(request).catch(async () =>
++      (await caches.match("/offline.html", { cacheName: CACHE })) || Response.error()));
++  }
++});
+diff --git a/web-app/tests/service-worker.test.mjs b/web-app/tests/service-worker.test.mjs
+new file mode 100644
+index 0000000..93efa66
+--- /dev/null
++++ b/web-app/tests/service-worker.test.mjs
+@@ -0,0 +1,99 @@
++import test from "node:test";
++import assert from "node:assert/strict";
++import { readFile } from "node:fs/promises";
++import vm from "node:vm";
++
++const source = await readFile(new URL("../public/sw.js", import.meta.url), "utf8");
++
++function worker(network = async () => new Response("network")) {
++  const handlers = {};
++  const recorded = { requests: [], deleted: [], claimed: false, skipped: false };
++  const fallback = new Response("offline");
++  const cache = {
++    addAll: async (requests) => { recorded.requests = requests; },
++  };
++  const context = {
++    URL, Request, Response,
++    fetch: network,
++    caches: {
++      open: async () => cache,
++      match: async () => fallback,
++      keys: async () => ["unrelated-app", "urbanhelphub-public-v0", "urbanhelphub-public-v1"],
++      delete: async (key) => { recorded.deleted.push(key); return true; },
++    },
++    self: {
++      location: { origin: "https://urbanhelphub.example" },
++      addEventListener: (name, callback) => { handlers[name] = callback; },
++      skipWaiting: async () => { recorded.skipped = true; },
++      clients: { claim: async () => { recorded.claimed = true; } },
++    },
++  };
++  // The browser resolves relative URLs against the worker origin.
++  context.Request = class extends Request {
++    constructor(url, options) { super(new URL(url, context.self.location.origin), options); }
++  };
++  vm.runInNewContext(source, context);
++  function dispatch(path, { method = "GET", mode = "navigate", headers = {}, origin = context.self.location.origin } = {}) {
++    let response;
++    handlers.fetch({
++      request: { url: origin + path, method, mode, headers: new Headers(headers) },
++      respondWith: (value) => { response = value; },
++    });
++    return response;
++  }
++  return { handlers, recorded, dispatch };
++}
++
++test("precache contains only four public assets and omits credentials", async () => {
++  const { handlers, recorded } = worker();
++  let done;
++  handlers.install({ waitUntil: (promise) => { done = promise; } });
++  await done;
++  assert.deepEqual(Array.from(recorded.requests, (request) => new URL(request.url).pathname),
++    ["/offline.html", "/icons/icon-192.png", "/icons/icon-512.png", "/icons/icon-maskable-512.png"]);
++  assert.ok(recorded.requests.every((request) => request.credentials === "omit" && request.cache === "reload"));
++  assert.ok(recorded.skipped);
++});
++
++test("activation removes only obsolete caches owned by this application", async () => {
++  const { handlers, recorded } = worker();
++  let done;
++  handlers.activate({ waitUntil: (promise) => { done = promise; } });
++  await done;
++  assert.deepEqual(recorded.deleted, ["urbanhelphub-public-v0"]);
++  assert.ok(recorded.claimed);
++});
++
++test("private routes, APIs, Stripe, new frontend chunks and non-GET requests bypass the worker", () => {
++  const { dispatch } = worker();
++  for (const path of ["/dashboard", "/dashboard/", "/helper/dashboard", "/admin", "/admin/helpers/1",
++    "/login", "/logout", "/api/user", "/api/messages", "/api/stripe/webhook",
++    "/api/customer/payments/1/checkout", "/api/helper/stripe/onboarding-link",
++    "/_next/static/new-build.js", "/?payment=success", "/?stripe=return"]) {
++    assert.equal(dispatch(path), undefined, path);
++  }
++  assert.equal(dispatch("/", { method: "POST" }), undefined);
++  assert.equal(dispatch("/icons/icon-192.png", { origin: "https://checkout.stripe.com" }), undefined);
++});
++
++test("authorization, React server component and prefetch requests cannot enter the cache", () => {
++  const { dispatch } = worker();
++  for (const headers of [{ Authorization: "Bearer synthetic-test-value" }, { RSC: "1" }, { "Next-Router-Prefetch": "1" }]) {
++    assert.equal(dispatch("/", { headers }), undefined);
++    assert.equal(dispatch("/icons/icon-192.png", { headers }), undefined);
++  }
++});
++
++test("only a failed plain homepage navigation gets the static offline fallback", async () => {
++  const { dispatch } = worker(async () => { throw new Error("offline"); });
++  assert.equal(await (await dispatch("/")).text(), "offline");
++  assert.equal(dispatch("/", { mode: "cors" }), undefined);
++  assert.equal(dispatch("/dashboard"), undefined);
++  assert.equal(dispatch("/?payment=cancelled"), undefined);
++});
++
++test("successful homepage navigation uses the network without storing its response", async () => {
++  const { dispatch, recorded } = worker(async () => new Response("fresh deployment"));
++  assert.equal(await (await dispatch("/")).text(), "fresh deployment");
++  assert.equal(recorded.requests.length, 0);
++});
