@@ -1,0 +1,69 @@
+URBANHELPHUB LIVE STRIPE PAYMENTS — INSTALLATION
+
+1. BACK UP
+   Back up the Laravel backend files and database before replacing files.
+
+2. UPLOAD
+   Extract UrbanHelpHub-live-payments-v8.zip into the Laravel backend root
+   (the folder containing artisan). Preserve the paths inside the ZIP.
+
+3. ADD LIVE ENVIRONMENT VALUES
+   In the backend .env file add:
+
+   FRONTEND_URL=https://urbanhelphub.com
+   STRIPE_SECRET_KEY=your Stripe live secret key
+   STRIPE_WEBHOOK_SECRET=the signing secret created in step 5
+   STRIPE_API_VERSION=2024-06-20
+   STRIPE_PLATFORM_FEE_PERCENT=30
+
+   Do not place Stripe keys in public_html or in the Next.js frontend.
+   Do not send live keys, passwords, OTPs, or recovery codes through chat.
+
+4. RUN THE DATABASE MIGRATION
+   In cPanel Terminal, from the Laravel backend root:
+
+   php artisan migrate --force
+   php artisan optimize:clear
+   php artisan config:cache
+   php artisan route:cache
+
+5. CREATE THE STRIPE WEBHOOK
+   In Stripe Dashboard > Developers > Webhooks, add:
+
+   https://urbanhelphub.com/api/stripe/webhook
+
+   If the API uses a subdomain, use its actual public API base followed by
+   /api/stripe/webhook instead.
+
+   Subscribe to:
+   - checkout.session.completed
+   - checkout.session.async_payment_succeeded
+   - checkout.session.async_payment_failed
+   - checkout.session.expired
+   - payment_intent.payment_failed
+   - account.updated
+
+   Copy the endpoint signing secret (whsec_...) into STRIPE_WEBHOOK_SECRET.
+
+6. ENABLE STRIPE CONNECT
+   Complete the platform's Stripe Connect settings, branding, business
+   verification, bank account and live-mode activation in the Stripe Dashboard.
+
+7. SAFE LIVE TEST
+   - Use a real Helper account to finish Stripe onboarding.
+   - Complete a small real task through the full workflow.
+   - Confirm the Customer reaches Stripe Checkout.
+   - Confirm the payment is marked Paid only after a signed webhook.
+   - Confirm 30% remains as the platform fee and 70% reaches the Helper's
+     connected Stripe balance.
+   - Confirm both parties receive in-app notifications.
+
+IMPLEMENTED SAFEGUARDS
+   - Hosted Stripe Checkout (card details never touch UrbanHelpHub servers)
+   - Signed webhook verification with five-minute replay tolerance
+   - Webhook event idempotency
+   - Checkout idempotency and expired-session recovery
+   - Customer ownership checks
+   - Helper payout-readiness checks
+   - Automatic destination transfer and platform commission
+
