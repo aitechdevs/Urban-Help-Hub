@@ -1,5 +1,6 @@
 "use client";
 
+import { useDashboardNavigation } from "@/lib/dashboard-navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import NotificationBell from "@/components/NotificationBell";
@@ -324,7 +325,20 @@ export default function AdminDashboardPage() {
   const [filter, setFilter] = useState<
     "all" | "pending" | "verified" | "active"
   >("pending");
+  const { section, navigate } = useDashboardNavigation();
+  function go(id: string) { navigate(id); setMobileMenu(false); }
   const [mobileMenu, setMobileMenu] = useState(false);
+  useEffect(() => {
+    function close(event: KeyboardEvent) {
+      if (event.key === "Escape" && mobileMenu) {
+        setMobileMenu(false);
+        const trigger = Array.from(document.querySelectorAll<HTMLButtonElement>('button[aria-controls="admin-mobile-menu"]')).find((button) => button.getClientRects().length > 0);
+        trigger?.focus();
+      }
+    }
+    window.addEventListener("keydown", close);
+    return () => window.removeEventListener("keydown", close);
+  }, [mobileMenu]);
   const [loggingOut, setLoggingOut] = useState(false);
   const [busyFinance, setBusyFinance] = useState<string | null>(null);
   const [busyTaskReview, setBusyTaskReview] = useState<number | null>(null);
@@ -607,9 +621,56 @@ export default function AdminDashboardPage() {
   }
 
   const stats = dashboard.stats;
+  const navigation = (
+<div className="space-y-1">
+            <SidebarButton
+              icon="dashboard"
+              label={t("dashboard")}
+              active={section === "overview"}
+              onClick={() => go("overview")}
+            />
+
+            <SidebarButton
+              icon="helpers"
+              label={t("helpers")}
+              active={section === "helpers"}
+              onClick={() => { setFilter("all"); go("helpers"); }}
+              badge={stats.pending_helpers}
+            />
+
+            <SidebarButton
+              icon="customers"
+              label={t("customers")}
+            />
+
+            <SidebarButton
+              icon="tasks"
+              label="Tasks"
+              active={section === "task-approvals"}
+              badge={stats.pending_tasks}
+              onClick={() => go("task-approvals")}
+            />
+
+            <SidebarButton
+              icon="payments"
+              label={t("payments")}
+              active={section === "payments"}
+              badge={stats.pending_payments + stats.pending_payouts}
+              onClick={() => go("payments")}
+            />
+
+            <SidebarButton
+              icon="shield"
+              label="Verification"
+              active={section === "verification"}
+              onClick={() => go("verification")}
+              badge={stats.pending_services}
+            />
+          </div>
+  );
 
   return (
-    <main className="min-h-screen bg-[#f6f8fb] text-slate-900">
+    <main id="overview" tabIndex={-1} className="min-h-screen bg-[#f6f8fb] text-slate-900">
       <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-[1500px] items-center justify-between px-5 py-4 sm:px-7">
           <div className="flex items-center gap-8">
@@ -664,13 +725,17 @@ export default function AdminDashboardPage() {
             onClick={() => setMobileMenu((value) => !value)}
             className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-slate-200 text-[#082f5b] transition hover:bg-slate-50 sm:hidden"
             aria-label="Open Admin menu"
+            aria-expanded={mobileMenu}
+            aria-controls="admin-mobile-menu"
           >
             <Icon name="menu" />
           </button>
         </div>
 
         {mobileMenu && (
-          <div className="border-t border-slate-100 bg-white px-5 py-4 sm:hidden">
+          <div id="admin-mobile-menu" className="border-t border-slate-100 bg-white px-5 py-4 sm:hidden">
+            {navigation}
+            <div className="flex items-center gap-3 py-2"><RegionSelector /><NotificationBell /></div>
             <p className="font-bold text-[#082f5b]">
               {dashboard.admin.name}
             </p>
@@ -687,50 +752,14 @@ export default function AdminDashboardPage() {
         )}
       </header>
 
+      <nav aria-label="Admin tablet navigation" className="hidden border-b border-slate-200 bg-white px-5 py-3 sm:block lg:hidden">{navigation}</nav>
       <div className="mx-auto flex max-w-[1500px]">
         <aside className="hidden min-h-[calc(100vh-73px)] w-64 shrink-0 border-r border-slate-200 bg-white p-5 lg:block">
           <p className="px-3 pb-3 text-xs font-bold uppercase tracking-[0.14em] text-slate-400">
             Workspace
           </p>
 
-          <div className="space-y-1">
-            <SidebarButton
-              icon="dashboard"
-              label={t("dashboard")}
-              active
-            />
-
-            <SidebarButton
-              icon="helpers"
-              label={t("helpers")}
-              badge={stats.pending_helpers}
-            />
-
-            <SidebarButton
-              icon="customers"
-              label={t("customers")}
-            />
-
-            <SidebarButton
-              icon="tasks"
-              label="Tasks"
-              badge={stats.pending_tasks}
-              onClick={() => document.getElementById("task-approvals")?.scrollIntoView({ behavior: "smooth" })}
-            />
-
-            <SidebarButton
-              icon="payments"
-              label={t("payments")}
-              badge={stats.pending_payments + stats.pending_payouts}
-              onClick={() => document.getElementById("payments")?.scrollIntoView({ behavior: "smooth" })}
-            />
-
-            <SidebarButton
-              icon="shield"
-              label="Verification"
-              badge={stats.pending_services}
-            />
-          </div>
+          {navigation}
 
           <div className="mt-8 rounded-2xl bg-[#eef4f8] p-4">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-[#082f5b]">
@@ -788,6 +817,7 @@ export default function AdminDashboardPage() {
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <StatCard
                 title="Pending Helpers"
+                onClick={() => { setFilter("pending"); go("helpers"); }}
                 value={stats.pending_helpers}
                 note="Need application review"
                 icon="clock"
@@ -797,6 +827,7 @@ export default function AdminDashboardPage() {
 
               <StatCard
                 title="Active Helpers"
+                onClick={() => { setFilter("active"); go("helpers"); }}
                 value={stats.active_helpers}
                 note={`${stats.verified_helpers} verified`}
                 icon="check"
@@ -813,6 +844,7 @@ export default function AdminDashboardPage() {
 
               <StatCard
                 title="Total Helpers"
+                onClick={() => { setFilter("all"); go("helpers"); }}
                 value={stats.total_helpers}
                 note={`${stats.pending_services} services pending`}
                 icon="helpers"
@@ -820,7 +852,7 @@ export default function AdminDashboardPage() {
               />
             </div>
 
-            <div className="mt-8 rounded-3xl border border-slate-200 bg-white shadow-sm">
+            <div id="helpers" tabIndex={-1} className="mt-8 rounded-3xl border border-slate-200 bg-white shadow-sm">
               <div className="border-b border-slate-100 p-5 sm:p-7">
                 <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
                   <div>
@@ -991,7 +1023,7 @@ export default function AdminDashboardPage() {
             </div>
 
             <div className="mt-8 grid gap-6 xl:grid-cols-2">
-              <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div id="verification" tabIndex={-1} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
                 <div className="flex items-start justify-between">
                   <div>
                     <h2 className="text-lg font-bold text-[#082f5b]">
@@ -1061,7 +1093,7 @@ export default function AdminDashboardPage() {
               </div>
             </div>
 
-            <section id="task-approvals" className="mt-8 scroll-mt-24 rounded-3xl border border-slate-200 bg-white shadow-sm">
+            <section id="task-approvals" tabIndex={-1} className="mt-8 scroll-mt-24 rounded-3xl border border-slate-200 bg-white shadow-sm">
               <div className="flex flex-col gap-4 border-b border-slate-100 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-7">
                 <div><div className="flex items-center gap-3"><h2 className="text-xl font-bold text-[#082f5b]">Customer task approvals</h2>{stats.pending_tasks > 0 && <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">{stats.pending_tasks} awaiting review</span>}</div><p className="mt-1 text-sm text-slate-500">Review safety, clarity, schedule and location before notifying Helpers.</p></div>
                 <Icon name="tasks" className="h-7 w-7 text-[#082f5b]" />
@@ -1076,7 +1108,7 @@ export default function AdminDashboardPage() {
               </div>}
             </section>
 
-            <section id="payments" className="mt-8 scroll-mt-24 rounded-3xl border border-slate-200 bg-white shadow-sm">
+            <section id="payments" tabIndex={-1} className="mt-8 scroll-mt-24 rounded-3xl border border-slate-200 bg-white shadow-sm">
               <div className="border-b border-slate-100 p-5 sm:p-7">
                 <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
                   <div>
@@ -1133,7 +1165,9 @@ function SidebarButton({
   return (
     <button
       type="button"
-      title={`${label} section`}
+      title={onClick ? `${label} section` : "Customer management is not implemented in this project."}
+      disabled={!onClick}
+      aria-current={active ? "location" : undefined}
       onClick={onClick}
       className={`flex w-full cursor-pointer items-center justify-between rounded-xl px-3 py-3 text-sm font-bold transition focus:outline-none focus:ring-4 focus:ring-green-50 ${
         active
@@ -1175,6 +1209,7 @@ function StatCard({
   icon,
   action,
   attention = false,
+  onClick,
 }: {
   title: string;
   value: number;
@@ -1182,10 +1217,14 @@ function StatCard({
   icon: IconName;
   action: string;
   attention?: boolean;
+  onClick?: () => void;
 }) {
   return (
     <button
       type="button"
+      onClick={onClick}
+      disabled={!onClick}
+      title={onClick ? action : "Customer management is not implemented in this project."}
       className="group w-full cursor-pointer rounded-3xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-1 hover:border-green-200 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-green-50 active:translate-y-0 sm:p-6"
     >
       <div className="flex items-start justify-between gap-4">

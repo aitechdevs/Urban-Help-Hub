@@ -1,0 +1,1409 @@
+(globalThis.TURBOPACK || (globalThis.TURBOPACK = [])).push([
+  "object" == typeof document ? document.currentScript : void 0,
+  76250,
+  (e) => {
+    "use strict";
+    var t = e.i(43476),
+      r = e.i(71645),
+      n = e.i(22016),
+      a = e.i(18566),
+      s = e.i(54858);
+    let i = [
+      "Sunday",
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday",
+    ];
+    function o() {
+      return (
+        window.sessionStorage.getItem("urbanhelphub_token") ||
+        window.localStorage.getItem("urbanhelphub_token")
+      );
+    }
+    function l() {
+      (window.sessionStorage.removeItem("urbanhelphub_token"),
+        window.sessionStorage.removeItem("urbanhelphub_user"),
+        window.localStorage.removeItem("urbanhelphub_token"),
+        window.localStorage.removeItem("urbanhelphub_user"));
+    }
+    function c(e) {
+      return e
+        ? e.replaceAll("_", " ").replace(/\b\w/g, (e) => e.toUpperCase())
+        : "Not provided";
+    }
+    function d({ value: e }) {
+      let r;
+      return (0, t.jsx)("span", {
+        className: `inline-flex rounded-full px-3 py-1 text-xs font-bold ring-1 ring-inset ${["active", "approved", "verified"].includes((r = e?.toLowerCase()) || "") ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : ["rejected", "suspended", "expired"].includes(r || "") ? "bg-red-50 text-red-700 ring-red-200" : "bg-amber-50 text-amber-700 ring-amber-200"}`,
+        children: c(e),
+      });
+    }
+    function u(e) {
+      let [t, r] = e.split(":").map(Number);
+      return new Date(2e3, 0, 1, t, r).toLocaleTimeString("en-CA", {
+        hour: "numeric",
+        minute: "2-digit",
+      });
+    }
+    function p({ label: e, value: r }) {
+      return (0, t.jsxs)("div", {
+        children: [
+          (0, t.jsx)("dt", {
+            className:
+              "text-xs font-black uppercase tracking-wider text-slate-400",
+            children: e,
+          }),
+          (0, t.jsx)("dd", {
+            className: "mt-1 break-words text-sm font-semibold text-slate-700",
+            children: r,
+          }),
+        ],
+      });
+    }
+    e.s([
+      "default",
+      0,
+      function () {
+        let e = (0, a.useParams)(),
+          f = (0, a.useRouter)(),
+          [m, x] = (0, r.useState)(null),
+          [h, b] = (0, r.useState)(!0),
+          [g, v] = (0, r.useState)(!1),
+          [y, j] = (0, r.useState)(""),
+          [N, w] = (0, r.useState)(""),
+          [_, k] = (0, r.useState)(""),
+          $ = (0, r.useCallback)(
+            async (t = !1) => {
+              let r = o();
+              if (!r) return void f.replace("/login");
+              (t ? v(!0) : b(!0), w(""));
+              try {
+                let t = await fetch(`${s.API_URL}/admin/helpers/${e.id}`, {
+                    headers: {
+                      Accept: "application/json",
+                      Authorization: `Bearer ${r}`,
+                    },
+                    cache: "no-store",
+                  }),
+                  n = await t.json();
+                if (401 === t.status || 403 === t.status) {
+                  (l(), f.replace("/login"));
+                  return;
+                }
+                if (!t.ok || !n.success || !n.data)
+                  throw Error(
+                    n.message || "Unable to load this Helper application.",
+                  );
+                x(n.data);
+              } catch (e) {
+                w(
+                  e instanceof Error
+                    ? e.message
+                    : "Unable to load this Helper application.",
+                );
+              } finally {
+                (b(!1), v(!1));
+              }
+            },
+            [e.id, f],
+          );
+        async function S(e, t, r, n) {
+          let a = o();
+          if (!a) return void f.replace("/login");
+          (j(r), w(""), k(""));
+          try {
+            let r = await fetch(`${s.API_URL}${e}`, {
+                method: "PUT",
+                headers: {
+                  Accept: "application/json",
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${a}`,
+                },
+                body: JSON.stringify(t),
+              }),
+              i = await r.json();
+            if (401 === r.status || 403 === r.status) {
+              (l(), f.replace("/login"));
+              return;
+            }
+            if (!r.ok || !i.success) {
+              let e = i.errors ? Object.values(i.errors).flat()[0] : void 0;
+              throw Error(
+                e || i.message || "The update could not be completed.",
+              );
+            }
+            (k(n), await $(!0));
+          } catch (e) {
+            w(
+              e instanceof Error
+                ? e.message
+                : "The update could not be completed.",
+            );
+          } finally {
+            j("");
+          }
+        }
+        function P(e, t) {
+          window.confirm(e) && t();
+        }
+        async function R(e) {
+          let t = o();
+          if (t) {
+            (j(`document-view-${e}`), w(""));
+            try {
+              let r = await fetch(
+                `${s.API_URL}/admin/helpers/${m?.user.id}/documents/${e}`,
+                { headers: { Authorization: `Bearer ${t}` } },
+              );
+              if (!r.ok) throw Error("Unable to open this document.");
+              let n = await r.blob(),
+                a = URL.createObjectURL(n);
+              (window.open(a, "_blank", "noopener,noreferrer"),
+                window.setTimeout(() => URL.revokeObjectURL(a), 6e4));
+            } catch (e) {
+              w(
+                e instanceof Error
+                  ? e.message
+                  : "Unable to open this document.",
+              );
+            } finally {
+              j("");
+            }
+          }
+        }
+        if (
+          ((0, r.useEffect)(() => {
+            $();
+          }, [$]),
+          h)
+        )
+          return (0, t.jsx)("main", {
+            className:
+              "grid min-h-screen place-items-center bg-slate-50 font-semibold text-slate-500",
+            children: "Loading Helper application…",
+          });
+        if (!m)
+          return (0, t.jsx)("main", {
+            className: "grid min-h-screen place-items-center bg-slate-50 px-5",
+            children: (0, t.jsxs)("div", {
+              className:
+                "max-w-md rounded-3xl border border-red-200 bg-white p-8 text-center shadow-sm",
+              children: [
+                (0, t.jsx)("h1", {
+                  className: "text-xl font-black text-[#082f5b]",
+                  children: "Application unavailable",
+                }),
+                (0, t.jsx)("p", {
+                  className: "mt-3 text-sm leading-6 text-red-700",
+                  children: N || "This Helper application could not be found.",
+                }),
+                (0, t.jsx)(n.default, {
+                  href: "/admin",
+                  className:
+                    "mt-6 inline-flex rounded-xl bg-[#082f5b] px-5 py-3 text-sm font-bold text-white",
+                  children: "Return to Admin dashboard",
+                }),
+              ],
+            }),
+          });
+        let {
+            user: C,
+            profile: E,
+            services: A,
+            availability: T,
+            documents: O,
+            verification_readiness: U,
+          } = m,
+          L =
+            [E?.city, E?.province, E?.country].filter(Boolean).join(", ") ||
+            "Not provided";
+        return (0, t.jsxs)("main", {
+          className: "min-h-screen bg-[#f5f7fa] text-slate-700",
+          children: [
+            (0, t.jsx)("header", {
+              className: "border-b border-slate-200 bg-white",
+              children: (0, t.jsxs)("div", {
+                className:
+                  "mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-4 sm:px-8",
+                children: [
+                  (0, t.jsx)(n.default, {
+                    href: "/admin",
+                    className:
+                      "inline-flex items-center gap-2 text-sm font-bold text-[#082f5b] hover:text-[#238f39]",
+                    children: "← Admin dashboard",
+                  }),
+                  (0, t.jsx)("button", {
+                    type: "button",
+                    onClick: () => $(!0),
+                    disabled: g || !!y,
+                    className:
+                      "rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-[#082f5b] hover:bg-slate-50 disabled:opacity-50",
+                    children: g ? "Refreshing…" : "Refresh application",
+                  }),
+                ],
+              }),
+            }),
+            (0, t.jsxs)("div", {
+              className: "mx-auto max-w-7xl px-5 py-8 sm:px-8",
+              children: [
+                (0, t.jsx)("section", {
+                  className:
+                    "overflow-hidden rounded-3xl bg-[#082f5b] text-white shadow-sm",
+                  children: (0, t.jsxs)("div", {
+                    className:
+                      "grid gap-6 p-6 sm:p-8 lg:grid-cols-[1fr_auto] lg:items-center",
+                    children: [
+                      (0, t.jsxs)("div", {
+                        className: "flex items-start gap-4",
+                        children: [
+                          (0, t.jsx)("div", {
+                            className:
+                              "grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-white/10 text-xl font-black",
+                            children: C.name
+                              .split(" ")
+                              .map((e) => e[0])
+                              .join("")
+                              .slice(0, 2)
+                              .toUpperCase(),
+                          }),
+                          (0, t.jsxs)("div", {
+                            children: [
+                              (0, t.jsx)("p", {
+                                className:
+                                  "text-xs font-black uppercase tracking-[0.16em] text-emerald-300",
+                                children: "Helper application",
+                              }),
+                              (0, t.jsx)("h1", {
+                                className:
+                                  "mt-1 text-3xl font-black tracking-tight",
+                                children: C.name,
+                              }),
+                              (0, t.jsx)("p", {
+                                className: "mt-2 text-sm text-slate-200",
+                                children:
+                                  E?.headline ||
+                                  "No professional headline provided",
+                              }),
+                              (0, t.jsxs)("div", {
+                                className: "mt-3 flex flex-wrap gap-2",
+                                children: [
+                                  (0, t.jsx)(d, {
+                                    value: E?.verification_status || "pending",
+                                  }),
+                                  (0, t.jsx)(d, { value: C.status }),
+                                ],
+                              }),
+                            ],
+                          }),
+                        ],
+                      }),
+                      (0, t.jsxs)("div", {
+                        className: "flex flex-wrap gap-3 lg:justify-end",
+                        children: [
+                          (0, t.jsx)("button", {
+                            type: "button",
+                            title: U.ready
+                              ? "Verify this Helper"
+                              : U.missing_requirements.join(", "),
+                            disabled:
+                              !!y ||
+                              E?.verification_status === "verified" ||
+                              !U.ready || C.status !== "active",
+                            onClick: () =>
+                              P(
+                                `Verify ${C.name}? Approved services will become active.`,
+                                () =>
+                                  S(
+                                    `/admin/helpers/${C.id}/verification`,
+                                    { verification_status: "verified" },
+                                    "verify",
+                                    "Helper verified successfully.",
+                                  ),
+                              ),
+                            className:
+                              "rounded-xl bg-[#2fad45] px-5 py-3 text-sm font-black text-white hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50",
+                            children:
+                              "verify" === y ? "Verifying…" : "✓ Verify Helper",
+                          }),
+                          (0, t.jsx)("button", {
+                            type: "button",
+                            disabled: !!y,
+                            onClick: () =>
+                              P(
+                                `${C.status !== "active" ? "Reactivate" : "Suspend"} ${C.name}'s account?`,
+                                () =>
+                                  S(
+                                    `/admin/helpers/${C.id}/status`,
+                                    {
+                                      status:
+                                        C.status !== "active"
+                                          ? "active"
+                                          : "suspended",
+                                    },
+                                    "status",
+                                    C.status !== "active"
+                                      ? "Helper account reactivated."
+                                      : "Helper account suspended.",
+                                  ),
+                              ),
+                            className:
+                              "rounded-xl border border-white/25 bg-white/10 px-5 py-3 text-sm font-black text-white hover:bg-white/20 disabled:opacity-50",
+                            children:
+                              "status" === y
+                                ? "Updating…"
+                                : C.status !== "active"
+                                  ? "Reactivate Helper"
+                                  : "Suspend Helper",
+                          }),
+                        ],
+                      }),
+                    ],
+                  }),
+                }),
+                (_ || N) &&
+                  (0, t.jsx)("div", {
+                    role: "status",
+                    className: `mt-5 rounded-2xl border px-5 py-4 text-sm font-bold ${N ? "border-red-200 bg-red-50 text-red-700" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`,
+                    children: N || _,
+                  }),
+                !U.ready &&
+                  (0, t.jsxs)("div", {
+                    className:
+                      "mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-800",
+                    children: [
+                      (0, t.jsx)("p", {
+                        className: "font-black",
+                        children: "Verification requirements are incomplete",
+                      }),
+                      (0, t.jsx)("p", {
+                        className: "mt-1",
+                        children:
+                          "The Helper cannot be verified until these items are uploaded and approved:",
+                      }),
+                      (0, t.jsx)("ul", {
+                        className:
+                          "mt-2 list-disc space-y-1 pl-5 font-semibold",
+                        children: U.missing_requirements.map((e) =>
+                          (0, t.jsx)("li", { children: e }, e),
+                        ),
+                      }),
+                    ],
+                  }),
+                C.status !== "active" && (0,t.jsx)("div",{className:"mt-3 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-bold text-red-700",children:`Login blocked: this account is ${C.status || "inactive"}. Use Reactivate Helper to restore sign-in. Verification and service approval remain separate.`}),
+                E?.verification_status === "verified" &&
+                  !U.ready &&
+                  (0, t.jsx)("div", {
+                    className:
+                      "mt-3 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-bold text-red-700",
+                    children:
+                      "Compliance warning: this Helper was verified before the required document checks were introduced. Review the account and documents before leaving services active.",
+                  }),
+                (0, t.jsxs)("div", {
+                  className:
+                    "mt-6 grid gap-6 lg:grid-cols-[minmax(0,1.7fr)_minmax(300px,0.8fr)]",
+                  children: [
+                    (0, t.jsxs)("div", {
+                      className: "space-y-6",
+                      children: [
+                        (0, t.jsxs)("section", {
+                          className:
+                            "rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-7",
+                          children: [
+                            (0, t.jsxs)("div", {
+                              className:
+                                "flex items-center justify-between gap-4",
+                              children: [
+                                (0, t.jsxs)("div", {
+                                  children: [
+                                    (0, t.jsx)("h2", {
+                                      className:
+                                        "text-xl font-black text-[#082f5b]",
+                                      children: "Service applications",
+                                    }),
+                                    (0, t.jsx)("p", {
+                                      className: "mt-1 text-sm text-slate-500",
+                                      children:
+                                        "Review experience and approve each service independently.",
+                                    }),
+                                  ],
+                                }),
+                                (0, t.jsxs)("span", {
+                                  className:
+                                    "rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600",
+                                  children: [A.length, " total"],
+                                }),
+                              ],
+                            }),
+                            (0, t.jsx)("div", {
+                              className: "mt-6 space-y-4",
+                              children: A.length
+                                ? A.map((e) => {
+                                    let n = ["One shared identity document"];
+                                    return (0, t.jsxs)(
+                                      "article",
+                                      {
+                                        className:
+                                          "rounded-2xl border border-slate-200 p-5",
+                                        children: [
+                                          (0, t.jsxs)("div", {
+                                            className:
+                                              "flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between",
+                                            children: [
+                                              (0, t.jsxs)("div", {
+                                                children: [
+                                                  (0, t.jsxs)("div", {
+                                                    className:
+                                                      "flex flex-wrap items-center gap-2",
+                                                    children: [
+                                                      (0, t.jsx)("h3", {
+                                                        className:
+                                                          "font-black text-[#082f5b]",
+                                                        children: e.name,
+                                                      }),
+                                                      (0, t.jsx)(d, {
+                                                        value: e.approval_status === "approved" && (E?.verification_status !== "verified" || !U.ready || C.status !== "active") ? "awaiting final verification" : e.approval_status,
+                                                      }),
+                                                      !!e.is_active && E?.verification_status === "verified" && U.ready && C.status === "active" &&
+                                                        (0, t.jsx)(d, {
+                                                          value: "active",
+                                                        }),
+                                                    ],
+                                                  }),
+                                                  (0, t.jsxs)("p", {
+                                                    className:
+                                                      "mt-2 text-sm font-bold text-[#238f39]",
+                                                    children: [
+                                                      "$",
+                                                      Number(
+                                                        e.hourly_rate || 0,
+                                                      ).toFixed(2),
+                                                      " CAD/hour · ",
+                                                      e.years_experience,
+                                                      " ",
+                                                      1 === e.years_experience
+                                                        ? "year"
+                                                        : "years",
+                                                      " experience",
+                                                    ],
+                                                  }),
+                                                ],
+                                              }),
+                                              (0, t.jsxs)("div", {
+                                                className: "flex gap-2",
+                                                children: [
+                                                  (0, t.jsx)("button", {
+                                                    type: "button",
+                                                    disabled:
+                                                      !!y || C.status !== "active" || E?.verification_status !== "verified" || !U.ready ||
+                                                      "approved" === e.approval_status,
+                                                    onClick: () =>
+                                                      P(
+                                                        `Approve ${e.name} for ${C.name}?`,
+                                                        () =>
+                                                          S(
+                                                            `/admin/helpers/${C.id}/services/${e.id}`,
+                                                            {
+                                                              approval_status:
+                                                                "approved",
+                                                            },
+                                                            `approve-${e.id}`,
+                                                            `${e.name} approved.`,
+                                                          ),
+                                                      ),
+                                                    className:
+                                                      "rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-black text-white hover:bg-emerald-700 disabled:opacity-40",
+                                                    children:
+                                                      y === `approve-${e.id}`
+                                                        ? "Approving…"
+                                                        : "✓ Approve",
+                                                  }),
+                                                  (0, t.jsx)("button", {
+                                                    type: "button",
+                                                    disabled:
+                                                      !!y ||
+                                                      "rejected" ===
+                                                        e.approval_status,
+                                                    onClick: () =>
+                                                      P(
+                                                        `Reject ${e.name} for ${C.name}?`,
+                                                        () =>
+                                                          S(
+                                                            `/admin/helpers/${C.id}/services/${e.id}`,
+                                                            {
+                                                              approval_status:
+                                                                "rejected",
+                                                            },
+                                                            `reject-${e.id}`,
+                                                            `${e.name} rejected.`,
+                                                          ),
+                                                      ),
+                                                    className:
+                                                      "rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-black text-red-700 hover:bg-red-100 disabled:opacity-40",
+                                                    children:
+                                                      y === `reject-${e.id}`
+                                                        ? "Rejecting…"
+                                                        : "× Reject",
+                                                  }),
+                                                ],
+                                              }),
+                                            ],
+                                          }),
+                                          (0, t.jsx)("p", {
+                                            className:
+                                              "mt-4 text-sm leading-6 text-slate-600",
+                                            children:
+                                              e.experience_summary ||
+                                              "No experience summary provided.",
+                                          }),
+                                          (0, t.jsx)("div", {
+                                            className:
+                                              "mt-4 flex flex-wrap gap-2",
+                                            children: n.length
+                                              ? n.map((e) =>
+                                                  (0, t.jsx)(
+                                                    "span",
+                                                    {
+                                                      className:
+                                                        "rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600",
+                                                      children: e,
+                                                    },
+                                                    e,
+                                                  ),
+                                                )
+                                              : (0, t.jsx)("span", {
+                                                  className:
+                                                    "text-xs text-slate-400",
+                                                  children:
+                                                    "No special verification requirements",
+                                                }),
+                                          }),
+                                        ],
+                                      },
+                                      e.id,
+                                    );
+                                  })
+                                : (0, t.jsx)("p", {
+                                    className:
+                                      "rounded-2xl bg-slate-50 p-5 text-sm text-slate-500",
+                                    children: "No services submitted.",
+                                  }),
+                            }),
+                          ],
+                        }),
+                        (0, t.jsxs)("section", {
+                          className:
+                            "rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-7",
+                          children: [
+                            (0, t.jsx)("h2", {
+                              className: "text-xl font-black text-[#082f5b]",
+                              children: "Profile and experience",
+                            }),
+                            (0, t.jsx)("p", {
+                              className:
+                                "mt-4 whitespace-pre-line text-sm leading-7 text-slate-600",
+                              children: E?.bio || "No biography provided.",
+                            }),
+                            (0, t.jsxs)("dl", {
+                              className:
+                                "mt-6 grid gap-4 border-t border-slate-100 pt-6 sm:grid-cols-2",
+                              children: [
+                                (0, t.jsx)(p, {
+                                  label: "Email",
+                                  value: C.email,
+                                }),
+                                (0, t.jsx)(p, {
+                                  label: "Phone",
+                                  value: C.phone || "Not provided",
+                                }),
+                                (0, t.jsx)(p, { label: "Location", value: L }),
+                                (0, t.jsx)(p, {
+                                  label: "Postal code",
+                                  value: E?.postal_code || "Not provided",
+                                }),
+                              ],
+                            }),
+                          ],
+                        }),
+                      ],
+                    }),
+                    (0, t.jsxs)("aside", {
+                      className: "space-y-6",
+                      children: [
+                        (0, t.jsxs)("section", {
+                          className:
+                            "rounded-3xl border border-slate-200 bg-white p-6 shadow-sm",
+                          children: [
+                            (0, t.jsx)("h2", {
+                              className: "text-lg font-black text-[#082f5b]",
+                              children: "Weekly availability",
+                            }),
+                            (0, t.jsx)("div", {
+                              className: "mt-4 space-y-3",
+                              children: T.length
+                                ? T.map((e) =>
+                                    (0, t.jsxs)(
+                                      "div",
+                                      {
+                                        className:
+                                          "flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-4 py-3 text-sm",
+                                        children: [
+                                          (0, t.jsx)("span", {
+                                            className:
+                                              "font-bold text-[#082f5b]",
+                                            children:
+                                              i[e.day_of_week] ||
+                                              `Day ${e.day_of_week}`,
+                                          }),
+                                          (0, t.jsx)("span", {
+                                            className: "text-slate-500",
+                                            children: e.is_available
+                                              ? `${u(e.start_time)}–${u(e.end_time)}`
+                                              : "Unavailable",
+                                          }),
+                                        ],
+                                      },
+                                      e.id,
+                                    ),
+                                  )
+                                : (0, t.jsx)("p", {
+                                    className: "text-sm text-slate-500",
+                                    children: "No availability submitted.",
+                                  }),
+                            }),
+                          ],
+                        }),
+                        (0, t.jsxs)("section", {
+                          className:
+                            "rounded-3xl border border-slate-200 bg-white p-6 shadow-sm",
+                          children: [
+                            (0, t.jsxs)("div", {
+                              className: "flex items-center justify-between",
+                              children: [
+                                (0, t.jsx)("h2", {
+                                  className:
+                                    "text-lg font-black text-[#082f5b]",
+                                  children: "Documents",
+                                }),
+                                (0, t.jsx)("span", {
+                                  className: "text-xs font-bold text-slate-400",
+                                  children: O.length,
+                                }),
+                              ],
+                            }),
+                            (0, t.jsx)("div", {
+                              className: "mt-4 space-y-3",
+                              children: O.length
+                                ? O.map((e) =>
+                                    (0, t.jsxs)(
+                                      "div",
+                                      {
+                                        className:
+                                          "rounded-xl border border-slate-200 p-4",
+                                        children: [
+                                          (0, t.jsxs)("div", {
+                                            className:
+                                              "flex items-start justify-between gap-3",
+                                            children: [
+                                              (0, t.jsxs)("div", {
+                                                children: [
+                                                  (0, t.jsx)("p", {
+                                                    className:
+                                                      "text-sm font-bold text-[#082f5b]",
+                                                    children:
+                                                      e.document_name ||
+                                                      c(e.document_type),
+                                                  }),
+                                                  (0, t.jsx)("p", {
+                                                    className:
+                                                      "mt-1 text-xs text-slate-500",
+                                                    children: c(
+                                                      e.document_type,
+                                                    ),
+                                                  }),
+                                                ],
+                                              }),
+                                              (0, t.jsx)(d, {
+                                                value: e.verification_status === "verified" ? "approved" : e.verification_status,
+                                              }),
+                                            ],
+                                          }),
+                                          e.expires_at &&
+                                            (0, t.jsxs)("p", {
+                                              className:
+                                                "mt-3 text-xs text-slate-500",
+                                              children: [
+                                                "Expires ",
+                                                new Date(
+                                                  e.expires_at,
+                                                ).toLocaleDateString("en-CA"),
+                                              ],
+                                            }),
+                                          (0, t.jsxs)("div", {
+                                            className:
+                                              "mt-3 flex flex-wrap gap-2",
+                                            children: [
+                                              (0, t.jsx)("button", {
+                                                type: "button",
+                                                disabled: !!y,
+                                                onClick: () => R(e.id),
+                                                className:
+                                                  "rounded-lg border border-slate-300 px-3 py-2 text-xs font-black text-[#082f5b] disabled:opacity-40",
+                                                children:
+                                                  y === `document-view-${e.id}`
+                                                    ? "Opening…"
+                                                    : "View document",
+                                              }),
+                                              (0, t.jsx)("button", {
+                                                type: "button",
+                                                disabled:
+                                                  !!y ||
+                                                  "verified" ===
+                                                    e.verification_status,
+                                                onClick: () =>
+                                                  P(
+                                                    `Approve ${e.document_name || c(e.document_type)}?`,
+                                                    () =>
+                                                      S(
+                                                        `/admin/helpers/${C.id}/documents/${e.id}`,
+                                                        {
+                                                          verification_status:
+                                                            "verified",
+                                                        },
+                                                        `document-approve-${e.id}`,
+                                                        "Document approved.",
+                                                      ),
+                                                  ),
+                                                className:
+                                                  "rounded-lg bg-emerald-600 px-3 py-2 text-xs font-black text-white disabled:opacity-40",
+                                                children:
+                                                  y ===
+                                                  `document-approve-${e.id}`
+                                                    ? "Approving…"
+                                                    : "Approve",
+                                              }),
+                                              (0, t.jsx)("button", {
+                                                type: "button",
+                                                disabled:
+                                                  !!y ||
+                                                  "rejected" ===
+                                                    e.verification_status,
+                                                onClick: () =>
+                                                  (function (e) {
+                                                    let t = window.prompt(
+                                                      "Explain why this document is being rejected. The Helper will see this note.",
+                                                    );
+                                                    if (null !== t) {
+                                                      if (!t.trim())
+                                                        return void w(
+                                                          "A rejection reason is required.",
+                                                        );
+                                                      S(
+                                                        `/admin/helpers/${m?.user.id}/documents/${e.id}`,
+                                                        {
+                                                          verification_status:
+                                                            "rejected",
+                                                          verification_notes:
+                                                            t.trim(),
+                                                        },
+                                                        `document-reject-${e.id}`,
+                                                        "Document rejected. The Helper can now review the reason and upload a replacement.",
+                                                      );
+                                                    }
+                                                  })(e),
+                                                className:
+                                                  "rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-black text-red-700 disabled:opacity-40",
+                                                children:
+                                                  y ===
+                                                  `document-reject-${e.id}`
+                                                    ? "Rejecting…"
+                                                    : "Reject",
+                                              }),
+                                            ],
+                                          }),
+                                        ],
+                                      },
+                                      e.id,
+                                    ),
+                                  )
+                                : (0, t.jsx)("p", {
+                                    className:
+                                      "rounded-xl bg-amber-50 p-4 text-sm text-amber-700",
+                                    children: "No documents uploaded.",
+                                  }),
+                            }),
+                          ],
+                        }),
+                        (0, t.jsxs)("section", {
+                          className:
+                            "rounded-3xl border border-slate-200 bg-white p-6 shadow-sm",
+                          children: [
+                            (0, t.jsx)("h2", {
+                              className: "text-lg font-black text-[#082f5b]",
+                              children: "Verification decision",
+                            }),
+                            (0, t.jsx)("p", {
+                              className:
+                                "mt-2 text-sm leading-6 text-slate-500",
+                              children:
+                                "Use rejection when the application cannot be verified. This also deactivates approved services.",
+                            }),
+                            (0, t.jsx)("button", {
+                              type: "button",
+                              disabled:
+                                !!y || E?.verification_status === "rejected",
+                              onClick: () =>
+                                P(`Reject ${C.name}'s verification?`, () =>
+                                  S(
+                                    `/admin/helpers/${C.id}/verification`,
+                                    { verification_status: "rejected" },
+                                    "reject-verification",
+                                    "Helper verification rejected.",
+                                  ),
+                                ),
+                              className:
+                                "mt-4 w-full rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-black text-red-700 hover:bg-red-100 disabled:opacity-40",
+                              children:
+                                "reject-verification" === y
+                                  ? "Rejecting…"
+                                  : "Reject verification",
+                            }),
+                          ],
+                        }),
+                      ],
+                    }),
+                  ],
+                }),
+              ],
+            }),
+          ],
+        });
+      },
+    ]);
+  },
+  54858,
+  (e) => {
+    "use strict";
+    e.i(47167);
+    let t = (
+      "https://api.urbanhelphub.com/api".trim() || "http://127.0.0.1:8000/api"
+    ).replace(/\/$/, "");
+    e.s(["API_URL", 0, t]);
+  },
+  22016,
+  (e, t, r) => {
+    "use strict";
+    (e.i(47167), Object.defineProperty(r, "__esModule", { value: !0 }));
+    var n = {
+      default: function () {
+        return b;
+      },
+      useLinkStatus: function () {
+        return v;
+      },
+    };
+    for (var a in n) Object.defineProperty(r, a, { enumerable: !0, get: n[a] });
+    let s = e.r(90809),
+      i = e.r(43476),
+      o = s._(e.r(71645)),
+      l = e.r(95057),
+      c = e.r(8372),
+      d = e.r(18581),
+      u = e.r(18967),
+      p = e.r(5550),
+      f = e.r(88540),
+      m = e.r(91949),
+      x = e.r(73668),
+      h = e.r(9396);
+    function b(t) {
+      var r;
+      let n,
+        a,
+        s,
+        [b, v] = (0, o.useOptimistic)(m.IDLE_LINK_STATUS),
+        y = (0, o.useRef)(null),
+        {
+          href: j,
+          as: N,
+          children: w,
+          prefetch: _ = null,
+          passHref: k,
+          replace: $,
+          shallow: S,
+          scroll: P,
+          onClick: R,
+          onMouseEnter: C,
+          onTouchStart: E,
+          legacyBehavior: A = !1,
+          onNavigate: T,
+          transitionTypes: O,
+          ref: U,
+          unstable_dynamicOnHover: L,
+          ...I
+        } = t;
+      ((n = w),
+        A &&
+          ("string" == typeof n || "number" == typeof n) &&
+          (n = (0, i.jsx)("a", { children: n })));
+      let D = o.default.useContext(c.AppRouterContext),
+        M = !1 !== _,
+        B = !1 === _ ? "none" : !0 === _ ? "full" : "auto",
+        H =
+          "none" !== B
+            ? "auto" === B
+              ? h.FetchStrategy.PPR
+              : h.FetchStrategy.Full
+            : h.FetchStrategy.PPR,
+        F = "string" == typeof (r = N || j) ? r : (0, l.formatUrl)(r);
+      if (A) {
+        if (n?.$$typeof === Symbol.for("react.lazy"))
+          throw Object.defineProperty(
+            Error(
+              "`<Link legacyBehavior>` received a direct child that is either a Server Component, or JSX that was loaded with React.lazy(). This is not supported. Either remove legacyBehavior, or make the direct child a Client Component that renders the Link's `<a>` tag.",
+            ),
+            "__NEXT_ERROR_CODE",
+            { value: "E863", enumerable: !1, configurable: !0 },
+          );
+        a = o.default.Children.only(n);
+      }
+      let q = A ? a && "object" == typeof a && a.ref : U,
+        z,
+        K = o.default.useCallback(
+          (e) => (
+            null !== D &&
+              (y.current = (0, m.mountLinkInstance)(e, F, D, H, M, v, z)),
+            () => {
+              (y.current &&
+                ((0, m.unmountLinkForCurrentNavigation)(y.current),
+                (y.current = null)),
+                (0, m.unmountPrefetchableInstance)(e));
+            }
+          ),
+          [M, F, D, H, v, z],
+        ),
+        V = {
+          ref: (0, d.useMergedRef)(K, q),
+          onClick(t) {
+            (A || "function" != typeof R || R(t),
+              A &&
+                a.props &&
+                "function" == typeof a.props.onClick &&
+                a.props.onClick(t),
+              !D ||
+                t.defaultPrevented ||
+                (function (t, r, n, a, s, i, l, c = "none") {
+                  if ("u" > typeof window) {
+                    let d,
+                      { nodeName: u } = t.currentTarget;
+                    if (
+                      ("A" === u.toUpperCase() &&
+                        (((d = t.currentTarget.getAttribute("target")) &&
+                          "_self" !== d) ||
+                          t.metaKey ||
+                          t.ctrlKey ||
+                          t.shiftKey ||
+                          t.altKey ||
+                          (t.nativeEvent && 2 === t.nativeEvent.which))) ||
+                      t.currentTarget.hasAttribute("download")
+                    )
+                      return;
+                    if (!(0, x.isLocalURL)(r)) {
+                      a && (t.preventDefault(), location.replace(r));
+                      return;
+                    }
+                    if ((t.preventDefault(), i)) {
+                      let e = !1;
+                      if (
+                        (i({
+                          preventDefault: () => {
+                            e = !0;
+                          },
+                        }),
+                        e)
+                      )
+                        return;
+                    }
+                    let { dispatchNavigateAction: p } = e.r(99781);
+                    o.default.startTransition(() => {
+                      p(
+                        r,
+                        a ? "replace" : "push",
+                        !1 === s
+                          ? f.ScrollBehavior.NoScroll
+                          : f.ScrollBehavior.Default,
+                        n.current,
+                        l,
+                        c,
+                      );
+                    });
+                  }
+                })(t, F, y, $, P, T, O, B));
+          },
+          onMouseEnter(e) {
+            (A || "function" != typeof C || C(e),
+              A &&
+                a.props &&
+                "function" == typeof a.props.onMouseEnter &&
+                a.props.onMouseEnter(e),
+              D && M && (0, m.onNavigationIntent)(e.currentTarget, !0 === L));
+          },
+          onTouchStart: function (e) {
+            (A || "function" != typeof E || E(e),
+              A &&
+                a.props &&
+                "function" == typeof a.props.onTouchStart &&
+                a.props.onTouchStart(e),
+              D && M && (0, m.onNavigationIntent)(e.currentTarget, !0 === L));
+          },
+        };
+      return (
+        (0, u.isAbsoluteUrl)(F)
+          ? (V.href = F)
+          : (A && !k && ("a" !== a.type || "href" in a.props)) ||
+            (V.href = (0, p.addBasePath)(F)),
+        (s = A
+          ? o.default.cloneElement(a, V)
+          : (0, i.jsx)("a", { ...I, ...V, children: n })),
+        (0, i.jsx)(g.Provider, { value: b, children: s })
+      );
+    }
+    let g = (0, o.createContext)(m.IDLE_LINK_STATUS),
+      v = () => (0, o.useContext)(g);
+    ("function" == typeof r.default ||
+      ("object" == typeof r.default && null !== r.default)) &&
+      void 0 === r.default.__esModule &&
+      (Object.defineProperty(r.default, "__esModule", { value: !0 }),
+      Object.assign(r.default, r),
+      (t.exports = r.default));
+  },
+  18581,
+  (e, t, r) => {
+    "use strict";
+    (Object.defineProperty(r, "__esModule", { value: !0 }),
+      Object.defineProperty(r, "useMergedRef", {
+        enumerable: !0,
+        get: function () {
+          return a;
+        },
+      }));
+    let n = e.r(71645);
+    function a(e, t) {
+      let r = (0, n.useRef)(null),
+        a = (0, n.useRef)(null);
+      return (0, n.useCallback)(
+        (n) => {
+          if (null === n) {
+            let e = r.current;
+            e && ((r.current = null), e());
+            let t = a.current;
+            t && ((a.current = null), t());
+          } else (e && (r.current = s(e, n)), t && (a.current = s(t, n)));
+        },
+        [e, t],
+      );
+    }
+    function s(e, t) {
+      if ("function" != typeof e)
+        return (
+          (e.current = t),
+          () => {
+            e.current = null;
+          }
+        );
+      {
+        let r = e(t);
+        return "function" == typeof r ? r : () => e(null);
+      }
+    }
+    ("function" == typeof r.default ||
+      ("object" == typeof r.default && null !== r.default)) &&
+      void 0 === r.default.__esModule &&
+      (Object.defineProperty(r.default, "__esModule", { value: !0 }),
+      Object.assign(r.default, r),
+      (t.exports = r.default));
+  },
+  18967,
+  (e, t, r) => {
+    "use strict";
+    (e.i(47167), Object.defineProperty(r, "__esModule", { value: !0 }));
+    var n = {
+      DecodeError: function () {
+        return b;
+      },
+      MiddlewareNotFoundError: function () {
+        return j;
+      },
+      MissingStaticPage: function () {
+        return y;
+      },
+      NormalizeError: function () {
+        return g;
+      },
+      PageNotFoundError: function () {
+        return v;
+      },
+      SP: function () {
+        return x;
+      },
+      ST: function () {
+        return h;
+      },
+      WEB_VITALS: function () {
+        return s;
+      },
+      execOnce: function () {
+        return i;
+      },
+      getDisplayName: function () {
+        return u;
+      },
+      getLocationOrigin: function () {
+        return c;
+      },
+      getURL: function () {
+        return d;
+      },
+      isAbsoluteUrl: function () {
+        return l;
+      },
+      isResSent: function () {
+        return p;
+      },
+      loadGetInitialProps: function () {
+        return m;
+      },
+      normalizeRepeatedSlashes: function () {
+        return f;
+      },
+      stringifyError: function () {
+        return N;
+      },
+    };
+    for (var a in n) Object.defineProperty(r, a, { enumerable: !0, get: n[a] });
+    let s = ["CLS", "FCP", "FID", "INP", "LCP", "TTFB"];
+    function i(e) {
+      let t,
+        r = !1;
+      return (...n) => (r || ((r = !0), (t = e(...n))), t);
+    }
+    let o = /^[a-zA-Z][a-zA-Z\d+\-.]*?:/,
+      l = (e) => {
+        let t = e.charCodeAt(0);
+        return !!((t >= 65 && t <= 90) || (t >= 97 && t <= 122)) && o.test(e);
+      };
+    function c() {
+      let { protocol: e, hostname: t, port: r } = window.location;
+      return `${e}//${t}${r ? ":" + r : ""}`;
+    }
+    function d() {
+      let { href: e } = window.location,
+        t = c();
+      return e.substring(t.length);
+    }
+    function u(e) {
+      return "string" == typeof e ? e : e.displayName || e.name || "Unknown";
+    }
+    function p(e) {
+      return e.finished || e.headersSent;
+    }
+    function f(e) {
+      let t = e.split("?");
+      return (
+        t[0].replace(/\\/g, "/").replace(/\/\/+/g, "/") +
+        (t[1] ? `?${t.slice(1).join("?")}` : "")
+      );
+    }
+    async function m(e, t) {
+      let r = t.res || (t.ctx && t.ctx.res);
+      if (!e.getInitialProps)
+        return t.ctx && t.Component
+          ? { pageProps: await m(t.Component, t.ctx) }
+          : {};
+      let n = await e.getInitialProps(t);
+      if (r && p(r)) return n;
+      if (!n)
+        throw Object.defineProperty(
+          Error(
+            `"${u(e)}.getInitialProps()" should resolve to an object. But found "${n}" instead.`,
+          ),
+          "__NEXT_ERROR_CODE",
+          { value: "E1025", enumerable: !1, configurable: !0 },
+        );
+      return n;
+    }
+    let x = "u" > typeof performance,
+      h =
+        x &&
+        ["mark", "measure", "getEntriesByName"].every(
+          (e) => "function" == typeof performance[e],
+        );
+    class b extends Error {}
+    class g extends Error {}
+    class v extends Error {
+      constructor(e) {
+        (super(),
+          (this.code = "ENOENT"),
+          (this.name = "PageNotFoundError"),
+          (this.message = `Cannot find module for page: ${e}`));
+      }
+    }
+    class y extends Error {
+      constructor(e, t) {
+        (super(),
+          (this.message = `Failed to load static file for page: ${e} ${t}`));
+      }
+    }
+    class j extends Error {
+      constructor() {
+        (super(),
+          (this.code = "ENOENT"),
+          (this.message = "Cannot find the middleware module"));
+      }
+    }
+    function N(e) {
+      return JSON.stringify({ message: e.message, stack: e.stack });
+    }
+  },
+  73668,
+  (e, t, r) => {
+    "use strict";
+    (Object.defineProperty(r, "__esModule", { value: !0 }),
+      Object.defineProperty(r, "isLocalURL", {
+        enumerable: !0,
+        get: function () {
+          return s;
+        },
+      }));
+    let n = e.r(18967),
+      a = e.r(52817);
+    function s(e) {
+      if (!(0, n.isAbsoluteUrl)(e)) return !0;
+      try {
+        let t = (0, n.getLocationOrigin)(),
+          r = new URL(e, t);
+        return r.origin === t && (0, a.hasBasePath)(r.pathname);
+      } catch (e) {
+        return !1;
+      }
+    }
+  },
+  98183,
+  (e, t, r) => {
+    "use strict";
+    Object.defineProperty(r, "__esModule", { value: !0 });
+    var n = {
+      assign: function () {
+        return l;
+      },
+      searchParamsToUrlQuery: function () {
+        return s;
+      },
+      urlQueryToSearchParams: function () {
+        return o;
+      },
+    };
+    for (var a in n) Object.defineProperty(r, a, { enumerable: !0, get: n[a] });
+    function s(e) {
+      let t = {};
+      for (let [r, n] of e.entries()) {
+        let e = t[r];
+        void 0 === e
+          ? (t[r] = n)
+          : Array.isArray(e)
+            ? e.push(n)
+            : (t[r] = [e, n]);
+      }
+      return t;
+    }
+    function i(e) {
+      return "string" == typeof e
+        ? e
+        : ("number" != typeof e || isNaN(e)) && "boolean" != typeof e
+          ? ""
+          : String(e);
+    }
+    function o(e) {
+      let t = new URLSearchParams();
+      for (let [r, n] of Object.entries(e))
+        if (Array.isArray(n)) for (let e of n) t.append(r, i(e));
+        else t.set(r, i(n));
+      return t;
+    }
+    function l(e, ...t) {
+      for (let r of t) {
+        for (let t of r.keys()) e.delete(t);
+        for (let [t, n] of r.entries()) e.append(t, n);
+      }
+      return e;
+    }
+  },
+  95057,
+  (e, t, r) => {
+    "use strict";
+    (e.i(47167), Object.defineProperty(r, "__esModule", { value: !0 }));
+    var n = {
+      formatUrl: function () {
+        return o;
+      },
+      formatWithValidation: function () {
+        return c;
+      },
+      urlObjectKeys: function () {
+        return l;
+      },
+    };
+    for (var a in n) Object.defineProperty(r, a, { enumerable: !0, get: n[a] });
+    let s = e.r(90809)._(e.r(98183)),
+      i = /https?|ftp|gopher|file/;
+    function o(e) {
+      let { auth: t, hostname: r } = e,
+        n = e.protocol || "",
+        a = e.pathname || "",
+        o = e.hash || "",
+        l = e.query || "",
+        c = !1;
+      ((t = t ? encodeURIComponent(t).replace(/%3A/i, ":") + "@" : ""),
+        e.host
+          ? (c = t + e.host)
+          : r &&
+            ((c = t + (~r.indexOf(":") ? `[${r}]` : r)),
+            e.port && (c += ":" + e.port)),
+        l && "object" == typeof l && (l = String(s.urlQueryToSearchParams(l))));
+      let d = e.search || (l && `?${l}`) || "";
+      return (
+        n && !n.endsWith(":") && (n += ":"),
+        e.slashes || ((!n || i.test(n)) && !1 !== c)
+          ? ((c = "//" + (c || "")), a && "/" !== a[0] && (a = "/" + a))
+          : c || (c = ""),
+        o && "#" !== o[0] && (o = "#" + o),
+        d && "?" !== d[0] && (d = "?" + d),
+        (a = a.replace(/[?#]/g, encodeURIComponent)),
+        (d = d.replace("#", "%23")),
+        `${n}${c}${a}${d}${o}`
+      );
+    }
+    let l = [
+      "auth",
+      "hash",
+      "host",
+      "hostname",
+      "href",
+      "path",
+      "pathname",
+      "port",
+      "protocol",
+      "query",
+      "search",
+      "slashes",
+    ];
+    function c(e) {
+      return o(e);
+    }
+  },
+  18566,
+  (e, t, r) => {
+    t.exports = e.r(76562);
+  },
+]);

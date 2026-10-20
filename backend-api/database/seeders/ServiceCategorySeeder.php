@@ -120,6 +120,16 @@ class ServiceCategorySeeder extends Seeder
                 'requires_driving_documents' => false,
                 'requires_specialist_documents' => false,
             ],
+            [
+                'name' => 'Mobile Salon',
+                'slug' => 'mobile-salon',
+                'description' => 'Haircuts, hairstyling and salon services at your location.',
+                'sort_order' => 12,
+                'requires_verification' => true,
+                'requires_background_check' => false,
+                'requires_driving_documents' => false,
+                'requires_specialist_documents' => true,
+            ],
         ];
 
         foreach ($categories as $category) {

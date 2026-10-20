@@ -89,6 +89,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/customer/tasks', [MarketplaceController::class, 'customerTasks']);
     Route::post('/customer/tasks', [MarketplaceController::class, 'createTask']);
+    Route::put('/customer/tasks/{taskId}', [MarketplaceController::class, 'updateTask']);
     Route::put('/customer/tasks/{taskId}/confirm', [MarketplaceController::class, 'confirmHelper']);
     Route::put('/customer/tasks/{taskId}/confirm-completion', [MarketplaceController::class, 'confirmCompletion']);
     Route::post('/customer/payments/{paymentId}/checkout', [StripePaymentController::class, 'checkout']);
@@ -199,3 +200,13 @@ Route::middleware('auth:sanctum')->group(function () {
             );
         });
 });
+
+// Maintained extension routes: final approval mail must be registered last.
+require __DIR__.'/customer-task-details.php';
+require __DIR__.'/account-review.php';
+require __DIR__.'/identity-once.php';
+require __DIR__.'/password-recovery.php';
+
+require __DIR__.'/helper-approval-consistency.php';
+
+require __DIR__.'/final-approval-email.php';

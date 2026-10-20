@@ -1,0 +1,36 @@
+1:"$Sreact.fragment"
+2:I[22016,["/_next/static/chunks/0dpq0xxwwqh37.js","/_next/static/chunks/22i43cg4l4-dq.js"],""]
+3:I[97367,["/_next/static/chunks/0dpq0xxwwqh37.js"],"OutletBoundary"]
+4:"$Sreact.suspense"
+8:I[97367,["/_next/static/chunks/0dpq0xxwwqh37.js"],"ViewportBoundary"]
+9:I[97367,["/_next/static/chunks/0dpq0xxwwqh37.js"],"MetadataBoundary"]
+:HL["/UrbanHelpHub-logo.png","image"]
+7:X
+0:{"buildId":"sE2GNcepEh0CqA7MLJKmW","data":[{"rsc":["$","$1","c",{"children":[["$","main",null,{"className":"min-h-screen bg-slate-50 text-slate-800","children":[["$","header",null,{"className":"border-b border-slate-200 bg-white","children":["$","div",null,{"className":"mx-auto flex max-w-5xl items-center justify-between px-5 py-4","children":[["$","$L2",null,{"href":"/","children":["$","img",null,{"src":"/UrbanHelpHub-logo.png","alt":"UrbanHelpHub","className":"h-12 w-auto"}]}],["$","$L2",null,{"href":"/","className":"text-sm font-bold text-[var(--navy)]","children":"Back to home"}]]}]}],["$","article",null,{"className":"mx-auto max-w-4xl px-5 py-12 sm:py-16","children":[["$","p",null,{"className":"text-sm font-black uppercase tracking-[.16em] text-[var(--green)]","children":"Urban Help Hub"}],["$","h1",null,{"className":"mt-3 text-4xl font-black tracking-tight text-[var(--navy)] sm:text-5xl","children":"Contact Urban Help Hub"}],["$","p",null,{"className":"mt-5 text-lg leading-8 text-slate-600","children":"Contact our support team about your account, a task, payment, payout, safety concern or privacy request."}],["$","p",null,{"className":"mt-3 text-sm font-semibold text-slate-500","children":"Effective September 21, 2026 · Last updated September 21, 2026"}],["$","div",null,{"className":"legal-content mt-10 space-y-8","children":[["$","section",null,{"children":[["$","h2",null,{"className":"text-2xl font-black text-[var(--navy)]","children":"Support"}],["$","div",null,{"className":"mt-3 space-y-3 leading-7 text-slate-600","children":[["$","p",null,{"children":[["$","strong",null,{"children":"Email:"}]," ",["$","a",null,{"href":"mailto:uhh@urbanhelphub.com","children":"uhh@urbanhelphub.com"}],["$","br",null,{}],["$","strong",null,{"children":"Phone:"}]," ",["$","a",null,{"href":"tel:+13065302908","children":"+1 306-530-2908"}]]}],["$","p",null,{"children":"When contacting us about a task or payment, include your name, account email and task number. Do not email card numbers, bank details, passwords or government identity documents."}]]}]]}],["$","section",null,{"children":[["$","h2",null,{"className":"text-2xl font-black text-[var(--navy)]","children":"Registered address"}],["$","div",null,{"className":"mt-3 space-y-3 leading-7 text-slate-600","children":["$","p",null,{"children":["Urban Help Hub",["$","br",null,{}],"Suite 206-611 7th Ave SE",["$","br",null,{}],"Alberta, Canada"]}]}]]}],["$","section",null,{"children":[["$","h2",null,{"className":"text-2xl font-black text-[var(--navy)]","children":"Urgent safety concerns"}],["$","div",null,{"className":"mt-3 space-y-3 leading-7 text-slate-600","children":["$","p",null,{"children":"If there is immediate danger, call 911 or your local emergency service first. Then report the incident to Urban Help Hub when it is safe to do so."}]}]]}]]}]]}],["$","footer",null,{"className":"border-t border-slate-200 bg-white px-5 py-8 text-center text-sm text-slate-500","children":[["$","div",null,{"className":"flex flex-wrap justify-center gap-5 font-semibold","children":[["$","$L2",null,{"href":"/terms","children":"Terms"}],["$","$L2",null,{"href":"/privacy","children":"Privacy"}],["$","$L2",null,{"href":"/refund-policy","children":"Refunds"}],["$","$L2",null,{"href":"/contact","children":"Contact"}]]}],["$","p",null,{"className":"mt-4","children":"© 2026 Urban Help Hub. Alberta, Canada."}]]}]]}],[["$","script","script-0",{"src":"/_next/static/chunks/22i43cg4l4-dq.js","async":true}]],["$","$L3",null,{"children":["$","$4",null,{"name":"Next.MetadataOutlet","children":"$@5"}]}]]}],"isPartial":"$@6","staleTime":"$7","varyParams":null},{"rsc":["$","$1","h",{"children":[null,["$","$L8",null,{"children":[["$","meta","0",{"charSet":"utf-8"}],["$","meta","1",{"name":"viewport","content":"width=device-width, initial-scale=1"}]]}],["$","div",null,{"hidden":true,"children":["$","$L9",null,{"children":["$","$4",null,{"name":"Next.Metadata","children":[["$","title","0",{"children":"Contact Urban Help Hub | UrbanHelpHub"}],["$","meta","1",{"name":"description","content":"Contact Urban Help Hub support in Canada about accounts, bookings, payments, Helper payouts, safety or privacy."}],["$","meta","2",{"name":"application-name","content":"UrbanHelpHub"}],["$","link","3",{"rel":"author","href":"https://urbanhelphub.com"}],["$","meta","4",{"name":"author","content":"Urban Help Hub"}],["$","link","5",{"rel":"manifest","href":"/manifest.webmanifest"}],"$La","$Lb","$Lc","$Ld","$Le","$Lf","$L10","$L11","$L12","$L13","$L14","$L15","$L16","$L17","$L18"]}]}]}],null]}],"isPartial":"$@19","staleTime":"$7","varyParams":null},{"rsc":"$L1a","isPartial":"$@1b","staleTime":"$7","varyParams":null}],"isUpgradeableISRFallback":false,"a":"$@1c","rootVaryParams":null,"needsRuntimeRequest":"$@1d"}
+1e:I[27201,["/_next/static/chunks/0dpq0xxwwqh37.js"],"IconMark"]
+1f:I[39756,["/_next/static/chunks/0dpq0xxwwqh37.js"],"default"]
+20:I[37457,["/_next/static/chunks/0dpq0xxwwqh37.js"],"default"]
+5:null
+a:["$","meta","6",{"name":"keywords","content":"local help Canada,hire local helpers,home cleaning services,moving help,furniture assembly,delivery and errands,home repair help,UrbanHelpHub"}]
+b:["$","meta","7",{"name":"creator","content":"Urban Help Hub"}]
+c:["$","meta","8",{"name":"publisher","content":"Urban Help Hub"}]
+d:["$","meta","9",{"name":"robots","content":"index, follow"}]
+e:["$","meta","10",{"name":"googlebot","content":"index, follow, max-video-preview:-1, max-image-preview:large, max-snippet:-1"}]
+f:["$","link","11",{"rel":"canonical","href":"https://urbanhelphub.com/contact/"}]
+10:["$","meta","12",{"property":"og:title","content":"Contact Urban Help Hub"}]
+11:["$","meta","13",{"property":"og:description","content":"Get support for your UrbanHelpHub account, task or payment."}]
+12:["$","meta","14",{"property":"og:url","content":"https://urbanhelphub.com/contact/"}]
+13:["$","meta","15",{"name":"twitter:card","content":"summary"}]
+14:["$","meta","16",{"name":"twitter:title","content":"UrbanHelpHub | Trusted Local Help Across Canada"}]
+15:["$","meta","17",{"name":"twitter:description","content":"Book trusted local Helpers for everyday tasks across Canada."}]
+16:["$","meta","18",{"name":"twitter:image","content":"https://urbanhelphub.com/UrbanHelpHub-logo.png"}]
+17:["$","link","19",{"rel":"icon","href":"/favicon.ico?favicon.2vob68tjqpejf.ico","sizes":"256x256","type":"image/x-icon"}]
+18:["$","$L1e","20",{}]
+1a:["$","$1","c",{"children":[null,["$","$L1f",null,{"parallelRouterKey":"children","template":["$","$L20",null,{}]}]]}]
+1d:true
+7:300
+7:C
+1c:0
+19:"$undefined"
+1b:"$undefined"
+6:"$undefined"

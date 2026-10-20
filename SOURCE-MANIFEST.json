@@ -1,0 +1,6 @@
+{
+  "assembled": "2026-10-20",
+  "frontend": "maintained static export, not rebuilt TSX",
+  "backend": "supplied source plus prepared updates",
+  "live_exact_copy": false
+}

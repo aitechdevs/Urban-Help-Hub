@@ -1,0 +1,5 @@
+User-Agent: *
+Allow: /
+
+Host: https://urbanhelphub.com
+Sitemap: https://urbanhelphub.com/sitemap.xml
