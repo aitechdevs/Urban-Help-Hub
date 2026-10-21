@@ -44,7 +44,7 @@ for oldpath in list((baseline/'_next/static/chunks').glob('*.css')):
   if path.is_file() and path.suffix in {'.html','.txt','.js','.json'}:
    text=path.read_text()
    if name in text:path.write_text(text.replace(name,new))
-(ROOT/'build-manifest.json').write_text(json.dumps(manifest,indent=2))
+(ROOT/'build-manifest.json').write_text(json.dumps(manifest,indent=2,sort_keys=True))
 print('Built static site:',output)
 print('Preserved original assets for clients with cached pages. Updated asset references:',len(manifest))
 # Replace the shared notification module wherever Turbopack duplicated it.
@@ -66,7 +66,7 @@ if notification_rules.exists():
    for old,new in links.items():changed=changed.replace(old,new)
    if changed!=original:path.write_text(changed)
  manifest.update(links)
- (ROOT/'build-manifest.json').write_text(json.dumps(manifest,indent=2))
+ (ROOT/'build-manifest.json').write_text(json.dumps(manifest,indent=2,sort_keys=True))
  print('Updated notification links and conversation selection:',len(links),'chunks')
 
 # Retain earlier prepared admin assets unchanged for clients with cached pages.

@@ -1,4 +1,32 @@
-# UrbanHelpHub
+# UrbanHelpHub — consolidated source and Node.js development
+
+Development continues on `nodejs-migration`; `cpanel-working` preserves the prepared
+cPanel-compatible snapshot. Neither branch is an exact production backup without
+comparison to a fresh export. No deployment is part of this change.
+
+Read [Node.js migration and local setup](docs/NODEJS-MIGRATION.md),
+[snapshot verification](docs/CPANEL-SNAPSHOT.md), and
+[consolidation provenance](docs/CONSOLIDATION.md).
+
+The supported development projects are `frontend/` (Next.js Node runtime with a
+feature-preserving adapter for the maintained static frontend) and `backend-api/`
+(Laravel retained, with Node/Vite asset tooling). Both have npm lockfiles and a
+Node 24 version pin. The older TSX trees remain reference material, not parity
+replacements for the maintained frontend.
+
+```sh
+npm ci --prefix frontend
+npm ci --prefix backend-api --include=dev
+npm run build --prefix frontend
+npm run build:local --prefix backend-api
+```
+
+Start local Laravel first (`npm run dev:api` from backend-api), then run
+`npm run dev --prefix frontend`. Configure only a local database and log mailer;
+the development proxy refuses public backend origins. See the migration guide
+for first-time PHP setup, tests and runtime limitations.
+
+## Preserved cPanel snapshot documentation
 
 Source and static deployment snapshot assembled 20 October 2026 from the supplied
 cPanel exports plus the updates prepared in this project. Hosting remains a
