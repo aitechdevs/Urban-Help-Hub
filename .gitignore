@@ -1,0 +1,36 @@
+# Dependencies and build caches
+**/node_modules/
+**/vendor/
+**/.next/
+**/dist/
+**/*.tsbuildinfo
+**/__pycache__/
+**/*.pyc
+# Secrets and local environment files
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.production.example
+**/*.pem
+**/*.key
+# Private/runtime data
+**/*.log
+**/error_log
+**/*.sql
+**/*.sqlite
+**/*.sqlite3
+**/*.db
+**/*.sql.gz
+**/*.sql.zip
+**/*.sqlite-wal
+**/*.sqlite-shm
+**/uploads/
+**/*.p12
+**/*.pfx
+backend-api/storage/**
+!backend-api/storage/**/
+!backend-api/storage/**/.gitignore
+backend-api/bootstrap/cache/*
+!backend-api/bootstrap/cache/.gitignore
+.DS_Store
+Thumbs.db

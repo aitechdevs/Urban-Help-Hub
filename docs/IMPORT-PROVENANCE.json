@@ -1,0 +1,38 @@
+{
+  "source_sha256": "6a4b1557dcf26656fb0433ee795c66ec5b10cc877b9de5331aeb14ee870525b0",
+  "repository_base": "0158963f2ad0c07fcbe8ab62e39e60d778c68d19",
+  "retained_branches": [
+    "codex/urbanhelphub-handoff-2026-10-20",
+    "ui-pwa-documentation"
+  ],
+  "patches_in_order": [
+    {
+      "archive": "UrbanHelpHub-Password-Recovery-Fix.zip",
+      "sha256": "78ee7e89f294ef9badff446e9e457eb2fae1d4b09fec9b719d3e4a6abb425265",
+      "backend_files": [
+        "backend-api/routes/password-recovery.php",
+        "backend-api/app/Http/Controllers/PasswordRecoveryController.php"
+      ],
+      "static_files": 6
+    },
+    {
+      "archive": "UrbanHelpHub-Approval-Login-Consistency-Fix.zip",
+      "sha256": "df60181df2072bf059d41931ac7d31916c8fe07d9520b372060575b886496d2d",
+      "backend_files": [
+        "backend-api/routes/helper-approval-consistency.php",
+        "backend-api/app/Http/Controllers/HelperReviewQueueController.php",
+        "backend-api/app/Http/Middleware/RequireHelperApprovalReadiness.php"
+      ],
+      "static_files": 506
+    },
+    {
+      "archive": "UrbanHelpHub-Notification-Links-And-Email-Logo.zip",
+      "sha256": "570189d16afc92f20ddaf108a753dc9b21a3da6cae63537dd4a0d1855784e286",
+      "backend_files": [
+        "backend-api/resources/mail/urbanhelphub-logo.png",
+        "backend-api/app/Providers/BrandedMailServiceProvider.php"
+      ],
+      "static_files": 63
+    }
+  ]
+}

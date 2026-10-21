@@ -44,12 +44,25 @@ export default function RegionSelector() {
   const region = REGIONS.find((item) => item.countryCode === countryCode) || REGIONS[1];
 
   useEffect(() => {
-    function close(event: MouseEvent) {
+    function close(event: PointerEvent) {
       if (!wrapper.current?.contains(event.target as Node)) setOpen(false);
     }
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
   }, []);
+
+  useEffect(() => {
+    function close(event: KeyboardEvent) {
+      if (event.key === "Escape" && open) {
+        event.preventDefault();
+        event.stopPropagation();
+        setOpen(false);
+        wrapper.current?.querySelector<HTMLButtonElement>("button")?.focus();
+      }
+    }
+    document.addEventListener("keydown", close);
+    return () => document.removeEventListener("keydown", close);
+  }, [open]);
 
   async function choose(nextCountryCode: string) {
     const token = getToken();

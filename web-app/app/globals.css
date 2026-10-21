@@ -15,7 +15,44 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
-button, a, input { transition: all 160ms ease; }
+button, a, input, select, textarea, summary {
+  transition: background-color 160ms ease, border-color 160ms ease,
+    color 160ms ease, box-shadow 160ms ease, opacity 160ms ease,
+    transform 160ms ease, filter 160ms ease;
+}
+button:not(:disabled), a[href]:not([aria-disabled="true"]),
+select:not(:disabled), summary { cursor: pointer; }
+button:disabled, select:disabled, [aria-disabled="true"] {
+  cursor: not-allowed;
+}
+button:disabled { opacity: .55; }
+@media (hover: hover) {
+  button:not(:disabled):hover, a[href]:not([aria-disabled="true"]):hover {
+    filter: brightness(.96);
+  }
+}
+button:not(:disabled):active, a[href]:not([aria-disabled="true"]):active {
+  filter: brightness(.9);
+}
+button:focus-visible, a[href]:focus-visible, input:focus-visible,
+select:focus-visible, textarea:focus-visible, summary:focus-visible {
+  outline: 3px solid var(--green);
+  outline-offset: 3px;
+}
+nav [aria-current="location"] {
+  text-decoration: underline;
+  text-decoration-color: var(--green);
+  text-underline-offset: .4em;
+  text-decoration-thickness: 2px;
+}
+[id][tabindex="-1"] { scroll-margin-top: 6rem; }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
 ::selection { background: rgba(47,173,69,.2); }
 
 .input {

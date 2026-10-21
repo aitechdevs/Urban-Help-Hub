@@ -1,0 +1,21 @@
+/* Shared interactive feedback. Existing typography and colours are preserved. */
+button:not(:disabled), a[href], summary { cursor: pointer; -webkit-tap-highlight-color: rgb(47 173 69 / 20%); }
+button:focus-visible, a[href]:focus-visible, summary:focus-visible { outline: 3px solid #2fad45; outline-offset: 4px; }
+button:disabled, [aria-disabled="true"] { cursor: not-allowed; }
+[id] { scroll-margin-top: 110px; }
+.uhh-summary { text-align: left; width: 100%; }
+.uhh-tabs { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1.25rem; }
+.uhh-tabs button, .uhh-edit-task { display: inline-flex; align-items: center; gap: .4rem; border: 1px solid #cbd5e1; border-radius: .75rem; padding: .6rem 1rem; font-size: .875rem; font-weight: 700; }
+.uhh-tabs button[aria-pressed="true"], .uhh-summary[aria-pressed="true"] { outline: 2px solid #2fad45; outline-offset: 2px; }
+.uhh-tabs button[aria-pressed="true"] { background: #082f5b; color: white; }
+.uhh-edit-task { margin-top: 1rem; color: #082f5b; }
+.uhh-edit-notice { max-width: 72rem; margin: 1.5rem auto 0; padding: 1.25rem; border: 1px solid #fcd34d; border-radius: 1rem; background: #fffbeb; color: #78350f; }
+.uhh-edit-notice a { font-weight: 700; text-decoration: underline; }
+
+/* Suppress the added decorative pointer, including any previously cached rule. */
+button:not([aria-label]):not(:has(img))::after,
+a[href]:not([aria-label]):not(:has(img))::after {
+ content: none !important;
+ display: none !important;
+ mask: none !important;
+}
