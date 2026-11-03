@@ -1640,6 +1640,7 @@
                                                       children: [
                                                         "Payout: ",
                                                         m(e.payout_status),
+                                                        e.paypal_dispute_status === "OPEN" ? " · Payment disputed: reconcile before payout" : "",
                                                       ],
                                                     }),
                                                   ],
@@ -1649,15 +1650,15 @@
                                             (0, t.jsxs)("div", {
                                               className: "flex flex-wrap gap-2",
                                               children: [
-                                                "stripe" === e.provider &&
+                                                ["stripe", "paypal"].includes(e.provider) &&
                                                   "paid" !== e.status &&
                                                   (0, t.jsx)("span", {
                                                     className:
                                                       "rounded-xl bg-indigo-50 px-4 py-2.5 text-sm font-bold text-indigo-700",
                                                     children:
-                                                      "Managed by Stripe",
+                                                      e.provider === "paypal" ? "Managed by PayPal" : "Managed by Stripe",
                                                   }),
-                                                "stripe" !== e.provider &&
+                                                !["stripe", "paypal"].includes(e.provider) &&
                                                   "pending" === e.status &&
                                                   (0, t.jsxs)(t.Fragment, {
                                                     children: [
@@ -1695,6 +1696,7 @@
                                                     ],
                                                   }),
                                                 "stripe" !== e.provider &&
+                                                  e.paypal_dispute_status !== "OPEN" &&
                                                   "paid" === e.status &&
                                                   e.payout_id &&
                                                   "pending" ===
@@ -1713,7 +1715,7 @@
                                                     className:
                                                       "rounded-xl bg-[#082f5b] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50",
                                                     children:
-                                                      "Release Helper payout",
+                                                      e.provider === "paypal" ? "Record completed Helper payout" : "Release Helper payout",
                                                   }),
                                                 "paid" === e.payout_status &&
                                                   (0, t.jsx)("span", {

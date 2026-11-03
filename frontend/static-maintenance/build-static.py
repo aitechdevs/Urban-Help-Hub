@@ -78,3 +78,17 @@ if compatibility.exists():
    destination=output/asset.relative_to(compatibility)
    destination.parent.mkdir(parents=True,exist_ok=True)
    shutil.copy2(asset,destination)
+
+# Keep customer payment policy copy consistent with checkout without altering baseline/SEO.
+# Apply to HTML and React payloads alike so direct visits and client navigation agree.
+copy_rules=ROOT/'payment-copy-replacements.json'
+if copy_rules.exists():
+ import html
+ for route,rules in json.loads(copy_rules.read_text()).items():
+  for path in (output/route).rglob('*'):
+   if path.is_file() and path.suffix in {'.html','.txt'}:
+    original=path.read_text();changed=original
+    for old,new in rules:
+     changed=changed.replace(old,new).replace(html.escape(old,quote=True),html.escape(new,quote=True))
+     changed=changed.replace(old.replace("'",'&#x27;'),new.replace("'",'&#x27;'))
+    if changed!=original:path.write_text(changed)

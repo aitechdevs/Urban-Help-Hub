@@ -1,0 +1,2107 @@
+(globalThis.TURBOPACK || (globalThis.TURBOPACK = [])).push([
+  "object" == typeof document ? document.currentScript : void 0,
+  78928,
+  (e) => {
+    "use strict";
+    var t = e.i(43476),
+      r = e.i(71645),
+      a = e.i(18566),
+      s = e.i(86561),
+      n = e.i(51005),
+      l = e.i(36329),
+      o = e.i(19133),
+      i = e.i(54858),
+      c = e.i(22016),
+      d = e.i(13786);
+    function u() {
+      return (
+        sessionStorage.getItem("urbanhelphub_token") ||
+        localStorage.getItem("urbanhelphub_token")
+      );
+    }
+    function m(e) {
+      return e.replaceAll("_", " ").replace(/\b\w/g, (e) => e.toUpperCase());
+    }
+    e.s([
+      "default",
+      0,
+      function () {
+        let e = (0, a.useRouter)(),
+          { t: p } = (0, o.useLanguage)(),
+          [h, f] = (0, r.useState)(null),
+          [x, b] = (0, r.useState)(!1),
+          [g, y] = (0, r.useState)([]),
+          [j, v] = (0, r.useState)(0),
+          [w, N] = (0, r.useState)(!0),
+          [uhhFilter, uhhSetFilter] = (0, r.useState)("all"),
+          [k, _] = (0, r.useState)(() =>
+            "cancelled" ===
+            new URLSearchParams(window.location.search).get("payment")
+              ? "Payment was cancelled. You can resume secure payment below."
+              : "",
+          ),
+          [S, P] = (0, r.useState)(null),
+          [C, U] = (0, r.useState)(null),
+          [A] = (0, r.useState)(() =>
+            "success" ===
+            new URLSearchParams(window.location.search).get("payment")
+              ? "Payment successful. Stripe is confirming your receipt and the Helper payout."
+              : "",
+          );
+        (0,r.useEffect)(()=>{ if(!h?.id)return; let cancelled=false; const token=u(); if(!token)return;
+          fetch(`${i.API_URL}/customer/profile`,{headers:{Accept:"application/json",Authorization:`Bearer ${token}`},cache:"no-store"}).then(res=>res.ok?res.json():null).then(result=>{if(!cancelled&&result?.success&&result.data.user){const current=result.data.user;f(current);const store=localStorage.getItem("urbanhelphub_user")?localStorage:sessionStorage;store.setItem("urbanhelphub_user",JSON.stringify(current));}}).catch(()=>{});return()=>{cancelled=true};
+        },[h?.id]);
+        async function E(e) {
+          let t = u();
+          if (t) {
+            (U(e), _(""));
+            try {
+              let r = await fetch(
+                  `${i.API_URL}/customer/payments/${e}/checkout`,
+                  {
+                    method: "POST",
+                    headers: {
+                      Accept: "application/json",
+                      Authorization: `Bearer ${t}`,
+                    },
+                  },
+                ),
+                a = await r.json();
+              if (!r.ok || !a.success)
+                throw Error(a.message || "Unable to start secure payment.");
+              window.location.assign(a.data.url);
+            } catch (e) {
+              (_(
+                e instanceof Error
+                  ? e.message
+                  : "Unable to start secure payment.",
+              ),
+                U(null));
+            }
+          }
+        }
+        async function $(e, t) {
+          if (
+            !window.confirm(
+              "Confirm this Helper for your task? Other Helper responses will be closed.",
+            )
+          )
+            return;
+          let r = u();
+          if (r) {
+            (P(t), _(""));
+            try {
+              let a = await fetch(`${i.API_URL}/customer/tasks/${e}/confirm`, {
+                  method: "PUT",
+                  headers: {
+                    Accept: "application/json",
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${r}`,
+                  },
+                  body: JSON.stringify({ assignment_id: t }),
+                }),
+                s = await a.json();
+              if (!a.ok || !s.success)
+                throw Error(s.message || "Unable to confirm this Helper.");
+              window.location.reload();
+            } catch (e) {
+              (_(
+                e instanceof Error
+                  ? e.message
+                  : "Unable to confirm this Helper.",
+              ),
+                P(null));
+            }
+          }
+        }
+        async function I(e, t, r) {
+          let a = u();
+          if (a) {
+            (U(e), _(""));
+            try {
+              let s = await fetch(
+                  `${i.API_URL}/${"review" === t ? `tasks/${e}/review` : `customer/tasks/${e}/confirm-completion`}`,
+                  {
+                    method: "PUT",
+                    headers: {
+                      Accept: "application/json",
+                      "Content-Type": "application/json",
+                      Authorization: `Bearer ${a}`,
+                    },
+                    body: JSON.stringify(r || {}),
+                  },
+                ),
+                n = await s.json();
+              if (!s.ok || !n.success)
+                throw Error(n.message || "Unable to update this task.");
+              if ("confirm-completion" === t && n.data?.payment_id)
+                return void (await E(n.data.payment_id));
+              window.location.reload();
+            } catch (e) {
+              (_(
+                e instanceof Error ? e.message : "Unable to update this task.",
+              ),
+                U(null));
+            }
+          }
+        }
+        if (
+          ((0, r.useEffect)(() => {
+            let t =
+              window.localStorage.getItem("urbanhelphub_user") ||
+              window.sessionStorage.getItem("urbanhelphub_user");
+            if (!t) return void e.replace("/login");
+            try {
+              let r = JSON.parse(t);
+              if ("helper" === r.role)
+                return void e.replace("/helper/dashboard");
+              if ("admin" === r.role) return void e.replace("/admin");
+              f(r);
+            } catch {
+              e.replace("/login");
+            }
+          }, [e]),
+          (0, r.useEffect)(() => {
+            h && "customer" === h.role && e();
+            async function e() {
+              let e = u();
+              if (e)
+                try {
+                  let t = {
+                      Accept: "application/json",
+                      Authorization: `Bearer ${e}`,
+                    },
+                    [r, a] = await Promise.all([
+                      fetch(`${i.API_URL}/customer/tasks`, {
+                        headers: t,
+                        cache: "no-store",
+                      }),
+                      fetch(`${i.API_URL}/messages/unread-count`, {
+                        headers: t,
+                        cache: "no-store",
+                      }),
+                    ]),
+                    s = await r.json();
+                  if (!r.ok || !s.success)
+                    throw Error(s.message || "Unable to load your tasks.");
+                  if ((y(s.data || []), a.ok)) {
+                    let e = await a.json();
+                    v(Number(e.data?.unread_count || 0));
+                  }
+                } catch (e) {
+                  _(
+                    e instanceof Error
+                      ? e.message
+                      : "Unable to load your tasks.",
+                  );
+                } finally {
+                  N(!1);
+                }
+            }
+          }, [h]),
+          !h)
+        )
+          return (0, t.jsx)("main", {
+            className: "grid min-h-screen place-items-center bg-slate-50",
+            children: (0, t.jsxs)("div", {
+              className: "text-center",
+              children: [
+                (0, t.jsx)("img", {
+                  src: "/UrbanHelpHub-logo.png",
+                  alt: "UrbanHelpHub",
+                  className: "mx-auto h-12 w-auto",
+                }),
+                (0, t.jsx)("p", {
+                  className: "mt-5 font-semibold text-slate-500",
+                  children: "Loading your account...",
+                }),
+              ],
+            }),
+          });
+        let O = h.name.split(" ")[0],
+          T = g.filter((e) =>
+            [
+              "pending_approval",
+              "open",
+              "awaiting_confirmation",
+              "in_progress",
+              "awaiting_completion",
+            ].includes(e.status),
+          ).length,
+          L = g.filter((e) => "scheduled" === e.status).length,
+          R = g.filter((e) => "completed" === e.status).length;
+        const uhhVisible = g.filter(task => uhhFilter === "all" || (uhhFilter === "active" ? ["draft","pending_approval","open","awaiting_confirmation","in_progress","awaiting_completion"].includes(task.status) : task.status === uhhFilter));
+        function uhhShow(filter) { b(false); uhhSetFilter(filter); document.getElementById("uhh-tasks")?.scrollIntoView({behavior:"smooth",block:"start"}); }
+        return (0, t.jsxs)("main", {
+          className: "min-h-screen bg-[#f7f9fb] text-slate-900",
+          children: [
+            (0, t.jsxs)("header", {
+              className:
+                "sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur",
+              children: [
+                (0, t.jsxs)("div", {
+                  className:
+                    "mx-auto flex h-[76px] max-w-7xl items-center justify-between gap-5 px-5 lg:px-8",
+                  children: [
+                    (0, t.jsx)(c.default, {
+                      href: "/",
+                      children: (0, t.jsx)("img", {
+                        src: "/UrbanHelpHub-logo.png",
+                        alt: "UrbanHelpHub",
+                        className:
+                          "h-11 w-auto max-w-[215px] object-contain sm:h-12",
+                      }),
+                    }),
+                    (0, t.jsxs)("nav", {
+                      className:
+                        "hidden items-center gap-7 text-sm font-bold text-slate-600 md:flex",
+                      children: [
+                        (0, t.jsx)("a", {
+                          href: "/dashboard",
+                          className: "text-[var(--navy)]",
+                          children: p("dashboard"),
+                        }),
+                        (0, t.jsx)("a", {
+                          href: "#uhh-tasks", onClick: () => uhhShow("all"),
+                          className: "hover:text-[var(--navy)]",
+                          children: p("tasks"),
+                        }),
+                        (0, t.jsx)(d.default, {
+                          href: "/messages/",
+                          label: p("messages"),
+                          className: "hover:text-[var(--navy)]",
+                        }),
+                      ],
+                    }),
+                    (0, t.jsxs)("div", {
+                      className: "hidden items-center gap-3 md:flex",
+                      children: [
+                        (0, t.jsx)(n.default, {}),
+                        (0, t.jsx)(s.default, {}),
+                        (0, t.jsx)("a", {
+                          href: "/post-a-task",
+                          className:
+                            "rounded-full bg-[var(--green)] px-5 py-2.5 text-sm font-black text-white",
+                          children: p("postTask"),
+                        }),
+                        (0, t.jsx)("button", {
+                          type: "button",
+                          onClick: () => b((e) => !e),
+                          className:
+                            "grid h-11 w-11 place-items-center rounded-full bg-[var(--navy)] font-black text-white",
+                          "aria-label": "Account menu",
+                          children: O.charAt(0).toUpperCase(),
+                        }),
+                      ],
+                    }),
+                    (0, t.jsx)("button", {
+                      type: "button",
+                      onClick: () => b((e) => !e),
+                      className:
+                        "grid h-11 w-11 place-items-center rounded-xl border border-slate-200 text-2xl text-[var(--navy)] md:hidden",
+                      "aria-label": "Open menu",
+                      children: "☰",
+                    }),
+                  ],
+                }),
+                x &&
+                  (0, t.jsxs)("div", {
+                    className:
+                      "absolute right-4 top-[68px] w-[280px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl",
+                    children: [
+                      (0, t.jsxs)("div", {
+                        className: "border-b border-slate-100 p-5",
+                        children: [
+                          (0, t.jsx)("p", {
+                            className: "font-black text-[var(--navy)]",
+                            children: h.name,
+                          }),
+                          (0, t.jsx)("p", {
+                            className: "mt-1 truncate text-sm text-slate-500",
+                            children: h.email,
+                          }),
+                        ],
+                      }),
+                      (0, t.jsxs)("div", {
+                        className: "grid p-2",
+                        children: [
+                          (0, t.jsx)("a", {
+                            href: "/dashboard",
+                            className:
+                              "rounded-xl px-4 py-3 text-sm font-bold hover:bg-slate-50",
+                            children: p("dashboard"),
+                          }),
+                          (0, t.jsx)("a", {
+                            href: "#uhh-tasks", onClick: () => uhhShow("all"),
+                            className:
+                              "rounded-xl px-4 py-3 text-sm font-bold hover:bg-slate-50",
+                            children: p("tasks"),
+                          }),
+                          (0, t.jsx)("a", {
+                            href: "/messages/",
+                            className:
+                              "rounded-xl px-4 py-3 text-sm font-bold hover:bg-slate-50",
+                            children: p("messages"),
+                          }),
+                          (0, t.jsx)("a", {
+                            href: "/customer/profile/",
+                            className:
+                              "rounded-xl px-4 py-3 text-sm font-bold hover:bg-slate-50",
+                            children: "Account settings",
+                          }),
+                          (0, t.jsx)("button", {
+                            type: "button",
+                            onClick: function () {
+                              (window.localStorage.removeItem(
+                                "urbanhelphub_token",
+                              ),
+                                window.localStorage.removeItem(
+                                  "urbanhelphub_user",
+                                ),
+                                window.sessionStorage.removeItem(
+                                  "urbanhelphub_token",
+                                ),
+                                window.sessionStorage.removeItem(
+                                  "urbanhelphub_user",
+                                ),
+                                e.push("/login"));
+                            },
+                            className:
+                              "rounded-xl px-4 py-3 text-left text-sm font-bold text-red-600 hover:bg-red-50",
+                            children: "Log out",
+                          }),
+                        ],
+                      }),
+                    ],
+                  }),
+              ],
+            }),
+            (0, t.jsxs)("div", {
+              className: "mx-auto max-w-7xl px-5 py-8 lg:px-8 lg:py-12",
+              children: [
+                (0, t.jsxs)("section", {
+                  className:
+                    "flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between",
+                  children: [
+                    (0, t.jsxs)("div", {
+                      children: [
+                        (0, t.jsx)("p", {
+                          className:
+                            "text-sm font-black uppercase tracking-[0.17em] text-[var(--green)]",
+                          children: "Your dashboard",
+                        }),
+                        (0, t.jsxs)("h1", {
+                          className:
+                            "mt-2 text-4xl font-black tracking-[-0.045em] text-[var(--navy)] sm:text-5xl",
+                          children: [p("welcome"), ", ", O, "."],
+                        }),
+                        (0, t.jsx)("p", {
+                          className:
+                            "mt-3 max-w-2xl text-base leading-7 text-slate-500",
+                          children: p("manageTasks"),
+                        }),
+                      ],
+                    }),
+                    (0, t.jsx)("a", {
+                      href: "/post-a-task",
+                      className:
+                        "flex h-14 items-center justify-center rounded-2xl bg-[var(--green)] px-7 font-black text-white shadow-sm",
+                      children: "+ Post a new task",
+                    }),
+                  ],
+                }),
+                (0, t.jsx)("section", {
+                  className: "mt-9 grid gap-4 sm:grid-cols-2 lg:grid-cols-4",
+                  children: [
+                    [
+                      String(T),
+                      p("activeTasks"),
+                      "Open tasks and Helper responses",
+                    ],
+                    [String(L), p("upcoming"), "Scheduled bookings"],
+                    [String(j), p("messages"), "Unread conversations"],
+                    [String(R), p("completed"), "Tasks completed"],
+                  ].map(([e, r, a], uhhIndex) =>
+                    (0, t.jsxs)(
+                      "button",
+                      {
+                        type: "button",
+                        onClick: () => uhhIndex === 2 ? window.location.assign("/messages/") : uhhShow(["active","scheduled","messages","completed"][uhhIndex]),
+                        "aria-pressed": uhhFilter === ["active","scheduled","messages","completed"][uhhIndex],
+                        className:
+                          "uhh-summary group cursor-pointer transition hover:-translate-y-1 hover:border-green-200 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-green-50 active:translate-y-0 rounded-[24px] border border-slate-200 bg-white p-6 shadow-sm",
+                        children: [
+                          (0, t.jsx)("div", {
+                            className: "text-3xl font-black text-[var(--navy)]",
+                            children: e,
+                          }),
+                          (0, t.jsx)("h2", {
+                            className: "mt-4 font-black text-slate-800",
+                            children: r,
+                          }),
+                          (0, t.jsx)("p", {
+                            className: "mt-1 text-sm leading-6 text-slate-500",
+                            children: a,
+                          }),
+                        ],
+                      },
+                      r,
+                    ),
+                  ),
+                }),
+                (0, t.jsxs)("section", {
+                  className: "mt-6 grid gap-6 lg:grid-cols-[1.5fr_.75fr]",
+                  children: [
+                    (0, t.jsxs)("article", {
+                      className:
+                        "rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm sm:p-8",
+                      children: [
+                        (0, t.jsxs)("div", {
+                          className: "flex items-center justify-between gap-4",
+                          children: [
+                            (0, t.jsxs)("div", {
+                              children: [
+                                (0, t.jsx)("h2", {
+                                  className:
+                                    "text-2xl font-black tracking-[-0.03em] text-[var(--navy)]",
+                                  children: p("yourTasks"),
+                                }),
+                                (0, t.jsx)("p", {
+                                  className: "mt-1 text-sm text-slate-500",
+                                  children:
+                                    "Track your current and upcoming bookings.",
+                                }),
+                              ],
+                            }),
+                            (0, t.jsx)("a", {
+                              href: "#uhh-tasks", onClick: () => uhhShow("all"),
+                              className:
+                                "hidden text-sm font-black text-[var(--green)] sm:block",
+                              children: "View all →",
+                            }),
+                          ],
+                        }),
+                        (0,t.jsx)("div", {id:"uhh-tasks", className:"uhh-tabs", role:"group", "aria-label":"Task filters", children: [["all","All"],["active","Active"],["scheduled","Scheduled"],["completed","Completed"]].map(([value,label]) => (0,t.jsx)("button", {type:"button", "aria-pressed":uhhFilter===value, onClick:()=>uhhSetFilter(value), children:label},value))}),
+                        k &&
+                          (0, t.jsx)("div", {
+                            className:
+                              "mt-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700",
+                            children: k,
+                          }),
+                        A &&
+                          (0, t.jsx)("div", {
+                            className:
+                              "mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800",
+                            children: A,
+                          }),
+                        w
+                          ? (0, t.jsx)("p", {
+                              className:
+                                "mt-8 text-center font-semibold text-slate-500",
+                              children: "Loading your tasks...",
+                            })
+                          : uhhVisible.length > 0
+                            ? (0, t.jsx)("div", {
+                                className: "mt-6 space-y-4",
+                                children: uhhVisible.map((e) =>
+                                  (0, t.jsxs)(
+                                    "article",
+                                    {
+                                      className:
+                                        "rounded-[24px] border border-slate-200 p-5 sm:p-6",
+                                      children: [
+                                        (0, t.jsxs)("div", {
+                                          className:
+                                            "flex flex-wrap items-start justify-between gap-4",
+                                          children: [
+                                            (0, t.jsxs)("div", {
+                                              children: [
+                                                (0, t.jsx)("span", {
+                                                  className:
+                                                    "rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700",
+                                                  children: e.service_name,
+                                                }),
+                                                (0, t.jsx)("h3", {
+                                                  className:
+                                                    "mt-3 text-lg font-black text-[var(--navy)]",
+                                                  children: e.title,
+                                                }),
+                                                (0, t.jsx)("p", {
+                                                  className:
+                                                    "mt-2 line-clamp-2 text-sm leading-6 text-slate-500",
+                                                  children: e.description,
+                                                }),
+                                              ],
+                                            }),
+                                            (0, t.jsx)("span", {
+                                              className:
+                                                "rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600",
+                                              children: m(e.status),
+                                            }),
+                                          ],
+                                        }),
+                                        (0, t.jsxs)("div", {
+                                          className:
+                                            "mt-4 flex flex-wrap gap-4 text-xs font-semibold text-slate-500",
+                                          children: [
+                                            (0, t.jsxs)("span", {
+                                              children: [
+                                                "📍 ",
+                                                [e.city, e.province]
+                                                  .filter(Boolean)
+                                                  .join(", "),
+                                              ],
+                                            }),
+                                            (0, t.jsxs)("span", {
+                                              children: [
+                                                "📅 ",
+                                                e.scheduled_date || "Flexible",
+                                              ],
+                                            }),
+                                            (0, t.jsxs)("span", {
+                                              children: [
+                                                "◷ ",
+                                                e.scheduled_start_time?.slice(
+                                                  0,
+                                                  5,
+                                                ) || "Flexible",
+                                              ],
+                                            }),
+                                          ],
+                                        }),
+                                        ["draft","pending_approval","open","awaiting_confirmation","scheduled"].includes(e.status) && !e.payment && (0,t.jsx)("a", {href:`/post-a-task/?edit=${e.id}`,className:"uhh-edit-task",children:"✎ Edit task / schedule"}),
+                                        "pending_approval" === e.status &&
+                                          (0, t.jsxs)("div", {
+                                            className:
+                                              "mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800",
+                                            children: [
+                                              (0, t.jsx)("p", {
+                                                className: "font-black",
+                                                children:
+                                                  "Awaiting Admin approval",
+                                              }),
+                                              (0, t.jsx)("p", {
+                                                className: "mt-1",
+                                                children:
+                                                  "UrbanHelpHub will review this task before notifying matching Helpers.",
+                                              }),
+                                            ],
+                                          }),
+                                        "rejected" === e.status &&
+                                          (0, t.jsxs)("div", {
+                                            className:
+                                              "mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700",
+                                            children: [
+                                              (0, t.jsx)("p", {
+                                                className: "font-black",
+                                                children: "Task not approved",
+                                              }),
+                                              (0, t.jsx)("p", {
+                                                className: "mt-1",
+                                                children:
+                                                  e.status_note ||
+                                                  "Please review the task details and contact support.",
+                                              }),
+                                            ],
+                                          }),
+                                        e.candidates?.length > 0 &&
+                                          (0, t.jsxs)("div", {
+                                            className:
+                                              "mt-5 border-t border-slate-100 pt-4",
+                                            children: [
+                                              (0, t.jsx)("p", {
+                                                className:
+                                                  "text-xs font-black uppercase tracking-wide text-slate-400",
+                                                children: "Helper",
+                                              }),
+                                              (0, t.jsx)("div", {
+                                                className: "mt-3 space-y-3",
+                                                children: e.candidates.map(
+                                                  (r) =>
+                                                    (0, t.jsxs)(
+                                                      "div",
+                                                      {
+                                                        className:
+                                                          "flex flex-col gap-3 rounded-2xl bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between",
+                                                        children: [
+                                                          (0, t.jsxs)("div", {
+                                                            children: [
+                                                              (0, t.jsx)("p", {
+                                                                className:
+                                                                  "font-black text-[var(--navy)]",
+                                                                children:
+                                                                  r.helper_name,
+                                                              }),
+                                                              (0, t.jsxs)("p", {
+                                                                className:
+                                                                  "mt-1 text-xs text-slate-500",
+                                                                children: [
+                                                                  r.headline ||
+                                                                    "Verified UrbanHelpHub Helper",
+                                                                  r.agreed_hourly_rate
+                                                                    ? ` \xb7 ${(0, l.formatMoney)(r.agreed_hourly_rate, e.currency || "CAD")}/hr`
+                                                                    : "",
+                                                                ],
+                                                              }),
+                                                            ],
+                                                          }),
+                                                          (0, t.jsxs)("div", {
+                                                            className:
+                                                              "flex flex-wrap items-center gap-2",
+                                                            children: [
+                                                              "accepted" ===
+                                                              r.status
+                                                                ? (0, t.jsx)(
+                                                                    "button",
+                                                                    {
+                                                                      type: "button",
+                                                                      disabled:
+                                                                        S ===
+                                                                        r.assignment_id,
+                                                                      onClick:
+                                                                        () =>
+                                                                          $(
+                                                                            e.id,
+                                                                            r.assignment_id,
+                                                                          ),
+                                                                      className:
+                                                                        "rounded-xl bg-[var(--green)] px-4 py-2.5 text-sm font-black text-white disabled:opacity-50",
+                                                                      children:
+                                                                        S ===
+                                                                        r.assignment_id
+                                                                          ? "Confirming..."
+                                                                          : "Confirm Helper",
+                                                                    },
+                                                                  )
+                                                                : (0, t.jsxs)(
+                                                                    "span",
+                                                                    {
+                                                                      className:
+                                                                        "text-sm font-black text-emerald-700",
+                                                                      children:
+                                                                        [
+                                                                          "✓ ",
+                                                                          m(
+                                                                            r.status,
+                                                                          ),
+                                                                        ],
+                                                                    },
+                                                                  ),
+                                                              "awaiting_completion" ===
+                                                                e.status &&
+                                                                (0, t.jsx)(
+                                                                  "button",
+                                                                  {
+                                                                    type: "button",
+                                                                    disabled:
+                                                                      C ===
+                                                                      e.id,
+                                                                    onClick:
+                                                                      () =>
+                                                                        window.confirm(
+                                                                          "Confirm that this job has been completed satisfactorily? Payment will be collected securely through Stripe.",
+                                                                        ) &&
+                                                                        I(
+                                                                          e.id,
+                                                                          "confirm-completion",
+                                                                        ),
+                                                                    className:
+                                                                      "rounded-xl bg-[var(--green)] px-4 py-2.5 text-sm font-black text-white disabled:opacity-50",
+                                                                    children:
+                                                                      C === e.id
+                                                                        ? "Confirming..."
+                                                                        : "Confirm completion & pay",
+                                                                  },
+                                                                ),
+                                                              "completed" ===
+                                                                e.status &&
+                                                                e.payment
+                                                                  ?.status ===
+                                                                  "paid" &&
+                                                                !e.my_review &&
+                                                                (0, t.jsx)(
+                                                                  "button",
+                                                                  {
+                                                                    type: "button",
+                                                                    disabled:
+                                                                      C ===
+                                                                      e.id,
+                                                                    onClick:
+                                                                      () =>
+                                                                        (function (
+                                                                          e,
+                                                                        ) {
+                                                                          let t =
+                                                                            window.prompt(
+                                                                              "Rate your Helper from 1 to 5:",
+                                                                              "5",
+                                                                            );
+                                                                          if (
+                                                                            null ===
+                                                                            t
+                                                                          )
+                                                                            return;
+                                                                          let r =
+                                                                            Number(
+                                                                              t,
+                                                                            );
+                                                                          !Number.isInteger(
+                                                                            r,
+                                                                          ) ||
+                                                                          r <
+                                                                            1 ||
+                                                                          r > 5
+                                                                            ? _(
+                                                                                "Please enter a whole-number rating from 1 to 5.",
+                                                                              )
+                                                                            : I(
+                                                                                e,
+                                                                                "review",
+                                                                                {
+                                                                                  rating:
+                                                                                    r,
+                                                                                  comment:
+                                                                                    window.prompt(
+                                                                                      "Add a short review (optional):",
+                                                                                      "",
+                                                                                    ) ??
+                                                                                    "",
+                                                                                },
+                                                                              );
+                                                                        })(
+                                                                          e.id,
+                                                                        ),
+                                                                    className:
+                                                                      "rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-black text-[var(--navy)] disabled:opacity-50",
+                                                                    children:
+                                                                      "Leave review",
+                                                                  },
+                                                                ),
+                                                              e.my_review &&
+                                                                (0, t.jsx)(
+                                                                  "span",
+                                                                  {
+                                                                    className:
+                                                                      "text-sm font-black text-amber-600",
+                                                                    children:
+                                                                      "★".repeat(
+                                                                        e
+                                                                          .my_review
+                                                                          .rating,
+                                                                      ),
+                                                                  },
+                                                                ),
+                                                            ],
+                                                          }),
+                                                        ],
+                                                      },
+                                                      r.assignment_id,
+                                                    ),
+                                                ),
+                                              }),
+                                              e.payment &&
+                                                (0, t.jsxs)("div", {
+                                                  className:
+                                                    "mt-3 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900",
+                                                  children: [
+                                                    (0, t.jsxs)("p", {
+                                                      className: "font-black",
+                                                      children: [
+                                                        "Payment: ",
+                                                        m(e.payment.status),
+                                                      ],
+                                                    }),
+                                                    (0, t.jsxs)("p", {
+                                                      className: "mt-1",
+                                                      children: [
+                                                        "Service total: ",
+                                                        (0, l.formatMoney)(
+                                                          e.payment
+                                                            .total_amount,
+                                                          e.payment.currency,
+                                                        ),
+                                                        " · Platform fee: ",
+                                                        (0, l.formatMoney)(
+                                                          e.payment
+                                                            .platform_fee,
+                                                          e.payment.currency,
+                                                        ),
+                                                      ],
+                                                    }),
+                                                    "paid" !==
+                                                      e.payment.status &&
+                                                      (0, t.jsx)("button", {
+                                                        type: "button",
+                                                        disabled:
+                                                          C === e.payment.id,
+                                                        onClick: () =>
+                                                          E(e.payment.id),
+                                                        className:
+                                                          "mt-3 rounded-xl bg-[var(--navy)] px-4 py-2.5 font-black text-white disabled:opacity-50",
+                                                        children:
+                                                          C === e.payment.id
+                                                            ? "Opening Stripe..."
+                                                            : "Pay securely with Stripe",
+                                                      }),
+                                                  ],
+                                                }),
+                                            ],
+                                          }),
+                                      ],
+                                    },
+                                    e.id,
+                                  ),
+                                ),
+                              })
+                            : (0, t.jsxs)("div", {
+                                className:
+                                  "mt-8 rounded-[24px] border-2 border-dashed border-slate-200 bg-slate-50/60 px-5 py-12 text-center",
+                                children: [
+                                  (0, t.jsx)("div", {
+                                    className:
+                                      "mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-emerald-50 text-3xl",
+                                    children: "✓",
+                                  }),
+                                  (0, t.jsx)("h3", {
+                                    className:
+                                      "mt-5 text-xl font-black text-[var(--navy)]",
+                                    children: "No tasks in this view",
+                                  }),
+                                  (0, t.jsx)("p", {
+                                    className:
+                                      "mx-auto mt-2 max-w-md leading-7 text-slate-500",
+                                    children:
+                                      "When you book help through UrbanHelpHub, your tasks and their progress will appear here.",
+                                  }),
+                                  (0, t.jsx)("a", {
+                                    href: "/post-a-task",
+                                    className:
+                                      "mt-6 inline-flex rounded-full bg-[var(--navy)] px-6 py-3 text-sm font-black text-white",
+                                    children: "Find a Helper",
+                                  }),
+                                ],
+                              }),
+                      ],
+                    }),
+                    (0, t.jsxs)("aside", {
+                      className:
+                        "rounded-[28px] bg-[var(--navy)] p-6 text-white shadow-sm sm:p-8",
+                      children: [
+                        (0, t.jsx)("p", {
+                          className:
+                            "text-xs font-black uppercase tracking-[0.18em] text-emerald-300",
+                          children: "Quick actions",
+                        }),
+                        (0, t.jsx)("h2", {
+                          className:
+                            "mt-3 text-2xl font-black tracking-[-0.03em]",
+                          children: p("quickActions"),
+                        }),
+                        (0, t.jsx)("div", {
+                          className: "mt-6 grid gap-3",
+                          children: [
+                            ["✨", "Book cleaning", "cleaning"],
+                            ["📦", "Get moving help", "moving-help"],
+                            ["🪑", "Assemble furniture", "furniture-assembly"],
+                            ["🚚", "Delivery & errands", "delivery-errands"],
+                          ].map(([e, r, a]) =>
+                            (0, t.jsxs)(
+                              "a",
+                              {
+                                href: `/post-a-task?service=${a}`,
+                                className:
+                                  "flex items-center gap-3 rounded-2xl border border-white/10 bg-white/10 p-4 transition hover:bg-white/15",
+                                children: [
+                                  (0, t.jsx)("span", {
+                                    className:
+                                      "grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white text-lg",
+                                    children: e,
+                                  }),
+                                  (0, t.jsx)("span", {
+                                    className: "font-bold",
+                                    children: r,
+                                  }),
+                                  (0, t.jsx)("span", {
+                                    className: "ml-auto",
+                                    children: "→",
+                                  }),
+                                ],
+                              },
+                              a,
+                            ),
+                          ),
+                        }),
+                      ],
+                    }),
+                  ],
+                }),
+                (0, t.jsxs)("section", {
+                  className: "mt-6 grid gap-6 md:grid-cols-2",
+                  children: [
+                    (0, t.jsxs)("article", {
+                      id: "profile",
+                      className:
+                        "rounded-[28px] border border-slate-200 bg-white p-6 sm:p-8",
+                      children: [
+                        (0, t.jsxs)("div", {
+                          className: "flex items-start justify-between gap-4",
+                          children: [
+                            (0, t.jsxs)("div", {
+                              children: [
+                                (0, t.jsx)("p", {
+                                  className:
+                                    "text-xs font-black uppercase tracking-[0.17em] text-[var(--green)]",
+                                  children: "Account",
+                                }),
+                                (0, t.jsx)("h2", {
+                                  className:
+                                    "mt-2 text-2xl font-black text-[var(--navy)]",
+                                  children: (0,t.jsxs)("span",{children:["Your profile ",(0,t.jsx)("a",{href:"/customer/profile/",className:"uhh-edit-task",children:"Edit / approval status"})]}),
+                                }),
+                              ],
+                            }),
+                            (0, t.jsx)("div", {
+                              className:
+                                "grid h-12 w-12 place-items-center rounded-full bg-[var(--navy)] text-lg font-black text-white",
+                              children: O.charAt(0).toUpperCase(),
+                            }),
+                          ],
+                        }),
+                        (0, t.jsxs)("div", {
+                          className: "mt-6 grid gap-4 text-sm",
+                          children: [
+                            (0, t.jsxs)("div", {
+                              className: "border-b border-slate-100 pb-4",
+                              children: [
+                                (0, t.jsx)("div", {
+                                  className: "text-slate-400",
+                                  children: "Name",
+                                }),
+                                (0, t.jsx)("div", {
+                                  className: "mt-1 font-bold text-slate-700",
+                                  children: h.name,
+                                }),
+                              ],
+                            }),
+                            (0, t.jsxs)("div", {
+                              className: "border-b border-slate-100 pb-4",
+                              children: [
+                                (0, t.jsx)("div", {
+                                  className: "text-slate-400",
+                                  children: "Email",
+                                }),
+                                (0, t.jsx)("div", {
+                                  className:
+                                    "mt-1 break-all font-bold text-slate-700",
+                                  children: h.email,
+                                }),
+                              ],
+                            }),
+                            (0, t.jsxs)("div", {
+                              children: [
+                                (0, t.jsx)("div", {
+                                  className: "text-slate-400",
+                                  children: "Phone",
+                                }),
+                                (0, t.jsx)("div", {
+                                  className: "mt-1 font-bold text-slate-700",
+                                  children: h.phone || "Not added",
+                                }),
+                              ],
+                            }),
+                          ],
+                        }),
+                      ],
+                    }),
+                    (0, t.jsxs)("article", {
+                      id: "messages",
+                      className:
+                        "rounded-[28px] border border-slate-200 bg-white p-6 sm:p-8",
+                      children: [
+                        (0, t.jsx)("p", {
+                          className:
+                            "text-xs font-black uppercase tracking-[0.17em] text-[var(--green)]",
+                          children: p("messages"),
+                        }),
+                        (0, t.jsx)("h2", {
+                          className:
+                            "mt-2 text-2xl font-black text-[var(--navy)]",
+                          children: "Conversations",
+                        }),
+                        (0, t.jsxs)("div", {
+                          className: "mt-8 text-center",
+                          children: [
+                            (0, t.jsx)("div", {
+                              className:
+                                "mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-slate-100 text-2xl",
+                              children: "💬",
+                            }),
+                            (0, t.jsx)("h3", {
+                              className: "mt-4 font-black text-[var(--navy)]",
+                              children: "No messages yet",
+                            }),
+                            (0, t.jsx)("p", {
+                              className:
+                                "mt-2 text-sm leading-6 text-slate-500",
+                              children:
+                                "Conversations with Helpers will appear here once you start booking tasks.",
+                            }),
+                          ],
+                        }),
+                      ],
+                    }),
+                  ],
+                }),
+              ],
+            }),
+            (0, t.jsx)("footer", {
+              className: "mt-8 border-t border-slate-200 bg-white",
+              children: (0, t.jsxs)("div", {
+                className:
+                  "mx-auto flex max-w-7xl flex-col gap-5 px-5 py-7 sm:flex-row sm:items-center sm:justify-between lg:px-8",
+                children: [
+                  (0, t.jsx)("img", {
+                    src: "/UrbanHelpHub-logo.png",
+                    alt: "UrbanHelpHub",
+                    className: "h-10 w-auto max-w-[190px] object-contain",
+                  }),
+                  (0, t.jsx)("p", {
+                    className: "text-xs font-semibold text-slate-400",
+                    children: "© 2026 UrbanHelpHub. Canada.",
+                  }),
+                ],
+              }),
+            }),
+          ],
+        });
+      },
+    ]);
+  },
+  13786,
+  (e) => {
+    "use strict";
+    var t = e.i(43476),
+      r = e.i(22016),
+      a = e.i(71645),
+      s = e.i(54858);
+    e.s([
+      "default",
+      0,
+      function ({ href: e, label: n = "Messages", className: l = "" }) {
+        let [o, i] = (0, a.useState)(0);
+        return (
+          (0, a.useEffect)(() => {
+            let e =
+              sessionStorage.getItem("urbanhelphub_token") ||
+              localStorage.getItem("urbanhelphub_token");
+            e &&
+              fetch(`${s.API_URL}/messages/unread-count`, {
+                headers: {
+                  Accept: "application/json",
+                  Authorization: `Bearer ${e}`,
+                },
+                cache: "no-store",
+              })
+                .then((e) => e.json())
+                .then((e) => i(Number(e.data?.unread_count || 0)))
+                .catch(() => {});
+          }, []),
+          (0, t.jsxs)(r.default, {
+            href: e,
+            className: `inline-flex items-center gap-1.5 ${l}`,
+            children: [
+              n,
+              o > 0 &&
+                (0, t.jsx)("span", {
+                  className:
+                    "inline-grid min-w-5 place-items-center rounded-full bg-red-500 px-1.5 py-0.5 text-[11px] font-black leading-none text-white",
+                  children: o > 99 ? "99+" : o,
+                }),
+            ],
+          })
+        );
+      },
+    ]);
+  },
+  86561,
+  (e) => {
+    "use strict";
+    var t = e.i(43476),
+      r = e.i(71645),
+      a = e.i(18566),
+      s = e.i(54858);
+    function n() {
+      return (
+        sessionStorage.getItem("urbanhelphub_token") ||
+        localStorage.getItem("urbanhelphub_token")
+      );
+    }
+    e.s([
+      "default",
+      0,
+      function () {
+        let e = (0, a.useRouter)(),
+          [l, o] = (0, r.useState)(!1),
+          [i, c] = (0, r.useState)([]),
+          [d, u] = (0, r.useState)(0),
+          [m, p] = (0, r.useState)(!0),
+          h = (0, r.useRef)(null);
+        async function f() {
+          let e = n();
+          if (e)
+            try {
+              let t = await fetch(`${s.API_URL}/notifications`, {
+                  headers: {
+                    Accept: "application/json",
+                    Authorization: `Bearer ${e}`,
+                  },
+                }),
+                r = await t.json();
+              t.ok &&
+                r.success &&
+                (c(r.data.notifications || []),
+                u(Number(r.data.unread_count || 0)));
+            } finally {
+              p(!1);
+            }
+        }
+        async function x(t) {
+          if (!t.read_at) {
+            let e = n();
+            (await fetch(`${s.API_URL}/notifications/${t.id}/read`, {
+              method: "PUT",
+              headers: {
+                Accept: "application/json",
+                Authorization: `Bearer ${e}`,
+              },
+            }),
+              c((e) =>
+                e.map((e) =>
+                  e.id === t.id
+                    ? { ...e, read_at: new Date().toISOString() }
+                    : e,
+                ),
+              ),
+              u((e) => Math.max(0, e - 1)));
+          }
+          t.action_url && e.push(t.action_url);
+        }
+        async function b() {
+          let e = n();
+          (await fetch(`${s.API_URL}/notifications/read-all`, {
+            method: "PUT",
+            headers: {
+              Accept: "application/json",
+              Authorization: `Bearer ${e}`,
+            },
+          }),
+            c((e) =>
+              e.map((e) => ({
+                ...e,
+                read_at: e.read_at || new Date().toISOString(),
+              })),
+            ),
+            u(0));
+        }
+        return (
+          (0, r.useEffect)(() => {
+            f();
+            let e = window.setInterval(f, 3e4);
+            return () => window.clearInterval(e);
+          }, []),
+          (0, r.useEffect)(() => {
+            function e(e) {
+              h.current && !h.current.contains(e.target) && o(!1);
+            }
+            return (
+              document.addEventListener("mousedown", e),
+              () => document.removeEventListener("mousedown", e)
+            );
+          }, []),
+          (0, t.jsxs)("div", {
+            ref: h,
+            className: "relative",
+            children: [
+              (0, t.jsxs)("button", {
+                type: "button",
+                onClick: () => o((e) => !e),
+                className:
+                  "relative grid h-10 w-10 place-items-center rounded-full border border-slate-200 bg-white text-xl text-[#082f5b] transition hover:bg-slate-50",
+                "aria-label": `Notifications${d ? `, ${d} unread` : ""}`,
+                children: [
+                  (0, t.jsx)("span", {
+                    "aria-hidden": "true",
+                    className: "text-base",
+                    children: "🔔",
+                  }),
+                  d > 0 &&
+                    (0, t.jsx)("span", {
+                      className:
+                        "absolute -right-1 -top-1 grid min-h-5 min-w-5 place-items-center rounded-full bg-red-500 px-1 text-[10px] font-black text-white",
+                      children: d > 99 ? "99+" : d,
+                    }),
+                ],
+              }),
+              l &&
+                (0, t.jsxs)("div", {
+                  className:
+                    "absolute right-0 top-12 z-[80] w-[min(92vw,380px)] overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-2xl",
+                  children: [
+                    (0, t.jsxs)("div", {
+                      className:
+                        "flex items-center justify-between border-b border-slate-100 px-4 py-3",
+                      children: [
+                        (0, t.jsxs)("div", {
+                          children: [
+                            (0, t.jsx)("p", {
+                              className: "font-black text-[#082f5b]",
+                              children: "Notifications",
+                            }),
+                            (0, t.jsxs)("p", {
+                              className: "text-xs text-slate-500",
+                              children: [d, " unread"],
+                            }),
+                          ],
+                        }),
+                        d > 0 &&
+                          (0, t.jsx)("button", {
+                            type: "button",
+                            onClick: b,
+                            className:
+                              "text-xs font-bold text-green-700 hover:underline",
+                            children: "Mark all read",
+                          }),
+                      ],
+                    }),
+                    (0, t.jsx)("div", {
+                      className: "max-h-[420px] overflow-y-auto",
+                      children: m
+                        ? (0, t.jsx)("p", {
+                            className: "p-6 text-center text-sm text-slate-500",
+                            children: "Loading notifications…",
+                          })
+                        : 0 === i.length
+                          ? (0, t.jsxs)("div", {
+                              className: "p-8 text-center",
+                              children: [
+                                (0, t.jsx)("p", {
+                                  className: "text-2xl",
+                                  children: "🔔",
+                                }),
+                                (0, t.jsx)("p", {
+                                  className: "mt-2 font-bold text-[#082f5b]",
+                                  children: "No notifications yet",
+                                }),
+                              ],
+                            })
+                          : i.map((e) =>
+                              (0, t.jsx)(
+                                "button",
+                                {
+                                  type: "button",
+                                  onClick: () => x(e),
+                                  className: `block w-full border-b border-slate-100 px-4 py-4 text-left transition hover:bg-slate-50 ${e.read_at ? "bg-white" : "bg-green-50/60"}`,
+                                  children: (0, t.jsxs)("div", {
+                                    className: "flex gap-3",
+                                    children: [
+                                      (0, t.jsx)("span", {
+                                        className: `mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${e.read_at ? "bg-slate-200" : "bg-green-500"}`,
+                                      }),
+                                      (0, t.jsxs)("span", {
+                                        children: [
+                                          (0, t.jsx)("span", {
+                                            className:
+                                              "block text-sm font-black text-[#082f5b]",
+                                            children: e.title,
+                                          }),
+                                          (0, t.jsx)("span", {
+                                            className:
+                                              "mt-1 block text-sm leading-5 text-slate-600",
+                                            children: e.message,
+                                          }),
+                                          (0, t.jsx)("span", {
+                                            className:
+                                              "mt-2 block text-xs font-semibold text-slate-400",
+                                            children: (function (e) {
+                                              let t = Math.max(
+                                                0,
+                                                Math.floor(
+                                                  (Date.now() -
+                                                    new Date(e).getTime()) /
+                                                    1e3,
+                                                ),
+                                              );
+                                              if (t < 60) return "Just now";
+                                              let r = Math.floor(t / 60);
+                                              if (r < 60) return `${r}m ago`;
+                                              let a = Math.floor(r / 60);
+                                              if (a < 24) return `${a}h ago`;
+                                              let s = Math.floor(a / 24);
+                                              return `${s}d ago`;
+                                            })(e.created_at),
+                                          }),
+                                        ],
+                                      }),
+                                    ],
+                                  }),
+                                },
+                                e.id,
+                              ),
+                            ),
+                    }),
+                  ],
+                }),
+            ],
+          })
+        );
+      },
+    ]);
+  },
+  51005,
+  (e) => {
+    "use strict";
+    var t = e.i(43476),
+      r = e.i(71645),
+      a = e.i(36329),
+      s = e.i(6315),
+      n = e.i(19133),
+      l = e.i(54858);
+    function o({ countryCode: e, country: r, size: a = "h-8 w-8" }) {
+      return (0, t.jsx)("span", {
+        className: `${a} block shrink-0 overflow-hidden rounded-full border border-slate-200 bg-slate-100 shadow-sm`,
+        children: (0, t.jsx)("img", {
+          src: `https://flagcdn.com/w80/${e.toLowerCase()}.png`,
+          alt: `${r} flag`,
+          className: "h-full w-full object-cover",
+        }),
+      });
+    }
+    function i() {
+      return (
+        sessionStorage.getItem("urbanhelphub_token") ||
+        localStorage.getItem("urbanhelphub_token")
+      );
+    }
+    function c(e) {
+      let t = JSON.stringify(e);
+      (localStorage.getItem("urbanhelphub_user") &&
+        localStorage.setItem("urbanhelphub_user", t),
+        sessionStorage.getItem("urbanhelphub_user") &&
+          sessionStorage.setItem("urbanhelphub_user", t));
+    }
+    e.s([
+      "default",
+      0,
+      function () {
+        let { t: e } = (0, n.useLanguage)(),
+          d = (0, r.useRef)(null),
+          [u, m] = (0, r.useState)(!1),
+          [p, h] = (0, r.useState)(!1),
+          [f, x] = (0, r.useState)(() => {
+            let e = (0, a.getStoredUser)();
+            return "string" == typeof e?.country_code ? e.country_code : "CA";
+          }),
+          [b, g] = (0, r.useState)(() => {
+            let e = (0, a.getStoredUser)();
+            return "string" == typeof e?.language_code ? e.language_code : "en";
+          }),
+          y = a.REGIONS.find((e) => e.countryCode === f) || a.REGIONS[1];
+        async function j(e) {
+          let t = i();
+          if (!t || p || e === f) return void m(!1);
+          h(!0);
+          try {
+            let r = await fetch(`${l.API_URL}/user/preferences`, {
+                method: "PUT",
+                headers: {
+                  Accept: "application/json",
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${t}`,
+                },
+                body: JSON.stringify({ country_code: e }),
+              }),
+              a = await r.json();
+            if (!r.ok || !a.success)
+              throw Error(a.message || "Unable to update country.");
+            (c(a.data.user), x(e), m(!1), window.location.reload());
+          } catch (e) {
+            window.alert(
+              e instanceof Error ? e.message : "Unable to update country.",
+            );
+          } finally {
+            h(!1);
+          }
+        }
+        async function v(e) {
+          let t = i();
+          if (t && !p && e !== b) {
+            h(!0);
+            try {
+              let r = await fetch(`${l.API_URL}/user/preferences`, {
+                  method: "PUT",
+                  headers: {
+                    Accept: "application/json",
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${t}`,
+                  },
+                  body: JSON.stringify({ country_code: f, language_code: e }),
+                }),
+                a = await r.json();
+              if (!r.ok || !a.success)
+                throw Error(a.message || "Unable to update language.");
+              (c(a.data.user), g(e), window.location.reload());
+            } catch (e) {
+              window.alert(
+                e instanceof Error ? e.message : "Unable to update language.",
+              );
+            } finally {
+              h(!1);
+            }
+          }
+        }
+        return (
+          (0, r.useEffect)(() => {
+            function e(e) {
+              d.current?.contains(e.target) || m(!1);
+            }
+            return (
+              document.addEventListener("mousedown", e),
+              () => document.removeEventListener("mousedown", e)
+            );
+          }, []),
+          (0, t.jsxs)("div", {
+            ref: d,
+            className: "relative",
+            children: [
+              (0, t.jsx)("button", {
+                type: "button",
+                onClick: () => m((e) => !e),
+                className:
+                  "grid h-11 w-11 place-items-center rounded-full border border-slate-200 bg-white shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50",
+                "aria-label": `Country: ${y.country}. Currency: ${y.currency}`,
+                "aria-expanded": u,
+                title: `${y.country} \xb7 ${y.currency}`,
+                children: (0, t.jsx)(o, {
+                  countryCode: y.countryCode,
+                  country: y.country,
+                }),
+              }),
+              u &&
+                (0, t.jsxs)("div", {
+                  className:
+                    "absolute right-0 top-12 z-[90] w-72 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl",
+                  children: [
+                    (0, t.jsxs)("div", {
+                      className: "border-b border-slate-100 px-4 py-3",
+                      children: [
+                        (0, t.jsx)("p", {
+                          className: "font-black text-[#082f5b]",
+                          children: e("countryCurrency"),
+                        }),
+                        (0, t.jsx)("p", {
+                          className: "mt-0.5 text-xs text-slate-500",
+                          children: e("preferenceHelp"),
+                        }),
+                      ],
+                    }),
+                    (0, t.jsx)("div", {
+                      className: "max-h-80 overflow-y-auto p-2",
+                      children: a.REGIONS.map((e) =>
+                        (0, t.jsxs)(
+                          "button",
+                          {
+                            type: "button",
+                            disabled: p,
+                            onClick: () => j(e.countryCode),
+                            className: `flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-slate-50 disabled:opacity-50 ${e.countryCode === f ? "bg-emerald-50" : ""}`,
+                            children: [
+                              (0, t.jsx)(o, {
+                                countryCode: e.countryCode,
+                                country: e.country,
+                                size: "h-9 w-9",
+                              }),
+                              (0, t.jsxs)("span", {
+                                className: "min-w-0 flex-1",
+                                children: [
+                                  (0, t.jsx)("span", {
+                                    className:
+                                      "block truncate text-sm font-bold text-[#082f5b]",
+                                    children: e.country,
+                                  }),
+                                  (0, t.jsx)("span", {
+                                    className:
+                                      "block text-xs font-semibold text-slate-500",
+                                    children: e.currency,
+                                  }),
+                                ],
+                              }),
+                              e.countryCode === f &&
+                                (0, t.jsx)("span", {
+                                  className: "font-black text-emerald-600",
+                                  children: "✓",
+                                }),
+                            ],
+                          },
+                          e.countryCode,
+                        ),
+                      ),
+                    }),
+                    (0, t.jsxs)("div", {
+                      className: "border-t border-slate-100 bg-slate-50 p-3",
+                      children: [
+                        (0, t.jsx)("p", {
+                          className:
+                            "mb-2 text-xs font-black uppercase tracking-wide text-slate-500",
+                          children: e("language"),
+                        }),
+                        (0, t.jsx)("div", {
+                          className: "flex flex-wrap gap-2",
+                          children: y.languages.map((e) =>
+                            (0, t.jsx)(
+                              "button",
+                              {
+                                type: "button",
+                                disabled: p,
+                                onClick: () => v(e),
+                                className: `rounded-full px-3 py-1.5 text-xs font-bold ${e === b ? "bg-[#082f5b] text-white" : "border border-slate-200 bg-white text-slate-700"}`,
+                                children:
+                                  s.LANGUAGE_NAMES[e] || e.toUpperCase(),
+                              },
+                              e,
+                            ),
+                          ),
+                        }),
+                      ],
+                    }),
+                  ],
+                }),
+            ],
+          })
+        );
+      },
+    ]);
+  },
+  54858,
+  (e) => {
+    "use strict";
+    e.i(47167);
+    let t = (
+      "https://api.urbanhelphub.com/api".trim() || "http://127.0.0.1:8000/api"
+    ).replace(/\/$/, "");
+    e.s(["API_URL", 0, t]);
+  },
+  22016,
+  (e, t, r) => {
+    "use strict";
+    (e.i(47167), Object.defineProperty(r, "__esModule", { value: !0 }));
+    var a = {
+      default: function () {
+        return b;
+      },
+      useLinkStatus: function () {
+        return y;
+      },
+    };
+    for (var s in a) Object.defineProperty(r, s, { enumerable: !0, get: a[s] });
+    let n = e.r(90809),
+      l = e.r(43476),
+      o = n._(e.r(71645)),
+      i = e.r(95057),
+      c = e.r(8372),
+      d = e.r(18581),
+      u = e.r(18967),
+      m = e.r(5550),
+      p = e.r(88540),
+      h = e.r(91949),
+      f = e.r(73668),
+      x = e.r(9396);
+    function b(t) {
+      var r;
+      let a,
+        s,
+        n,
+        [b, y] = (0, o.useOptimistic)(h.IDLE_LINK_STATUS),
+        j = (0, o.useRef)(null),
+        {
+          href: v,
+          as: w,
+          children: N,
+          prefetch: k = null,
+          passHref: _,
+          replace: S,
+          shallow: P,
+          scroll: C,
+          onClick: U,
+          onMouseEnter: A,
+          onTouchStart: E,
+          legacyBehavior: $ = !1,
+          onNavigate: I,
+          transitionTypes: O,
+          ref: T,
+          unstable_dynamicOnHover: L,
+          ...R
+        } = t;
+      ((a = N),
+        $ &&
+          ("string" == typeof a || "number" == typeof a) &&
+          (a = (0, l.jsx)("a", { children: a })));
+      let H = o.default.useContext(c.AppRouterContext),
+        M = !1 !== k,
+        B = !1 === k ? "none" : !0 === k ? "full" : "auto",
+        z =
+          "none" !== B
+            ? "auto" === B
+              ? x.FetchStrategy.PPR
+              : x.FetchStrategy.Full
+            : x.FetchStrategy.PPR,
+        D = "string" == typeof (r = w || v) ? r : (0, i.formatUrl)(r);
+      if ($) {
+        if (a?.$$typeof === Symbol.for("react.lazy"))
+          throw Object.defineProperty(
+            Error(
+              "`<Link legacyBehavior>` received a direct child that is either a Server Component, or JSX that was loaded with React.lazy(). This is not supported. Either remove legacyBehavior, or make the direct child a Client Component that renders the Link's `<a>` tag.",
+            ),
+            "__NEXT_ERROR_CODE",
+            { value: "E863", enumerable: !1, configurable: !0 },
+          );
+        s = o.default.Children.only(a);
+      }
+      let F = $ ? s && "object" == typeof s && s.ref : T,
+        J,
+        K = o.default.useCallback(
+          (e) => (
+            null !== H &&
+              (j.current = (0, h.mountLinkInstance)(e, D, H, z, M, y, J)),
+            () => {
+              (j.current &&
+                ((0, h.unmountLinkForCurrentNavigation)(j.current),
+                (j.current = null)),
+                (0, h.unmountPrefetchableInstance)(e));
+            }
+          ),
+          [M, D, H, z, y, J],
+        ),
+        G = {
+          ref: (0, d.useMergedRef)(K, F),
+          onClick(t) {
+            ($ || "function" != typeof U || U(t),
+              $ &&
+                s.props &&
+                "function" == typeof s.props.onClick &&
+                s.props.onClick(t),
+              !H ||
+                t.defaultPrevented ||
+                (function (t, r, a, s, n, l, i, c = "none") {
+                  if ("u" > typeof window) {
+                    let d,
+                      { nodeName: u } = t.currentTarget;
+                    if (
+                      ("A" === u.toUpperCase() &&
+                        (((d = t.currentTarget.getAttribute("target")) &&
+                          "_self" !== d) ||
+                          t.metaKey ||
+                          t.ctrlKey ||
+                          t.shiftKey ||
+                          t.altKey ||
+                          (t.nativeEvent && 2 === t.nativeEvent.which))) ||
+                      t.currentTarget.hasAttribute("download")
+                    )
+                      return;
+                    if (!(0, f.isLocalURL)(r)) {
+                      s && (t.preventDefault(), location.replace(r));
+                      return;
+                    }
+                    if ((t.preventDefault(), l)) {
+                      let e = !1;
+                      if (
+                        (l({
+                          preventDefault: () => {
+                            e = !0;
+                          },
+                        }),
+                        e)
+                      )
+                        return;
+                    }
+                    let { dispatchNavigateAction: m } = e.r(99781);
+                    o.default.startTransition(() => {
+                      m(
+                        r,
+                        s ? "replace" : "push",
+                        !1 === n
+                          ? p.ScrollBehavior.NoScroll
+                          : p.ScrollBehavior.Default,
+                        a.current,
+                        i,
+                        c,
+                      );
+                    });
+                  }
+                })(t, D, j, S, C, I, O, B));
+          },
+          onMouseEnter(e) {
+            ($ || "function" != typeof A || A(e),
+              $ &&
+                s.props &&
+                "function" == typeof s.props.onMouseEnter &&
+                s.props.onMouseEnter(e),
+              H && M && (0, h.onNavigationIntent)(e.currentTarget, !0 === L));
+          },
+          onTouchStart: function (e) {
+            ($ || "function" != typeof E || E(e),
+              $ &&
+                s.props &&
+                "function" == typeof s.props.onTouchStart &&
+                s.props.onTouchStart(e),
+              H && M && (0, h.onNavigationIntent)(e.currentTarget, !0 === L));
+          },
+        };
+      return (
+        (0, u.isAbsoluteUrl)(D)
+          ? (G.href = D)
+          : ($ && !_ && ("a" !== s.type || "href" in s.props)) ||
+            (G.href = (0, m.addBasePath)(D)),
+        (n = $
+          ? o.default.cloneElement(s, G)
+          : (0, l.jsx)("a", { ...R, ...G, children: a })),
+        (0, l.jsx)(g.Provider, { value: b, children: n })
+      );
+    }
+    let g = (0, o.createContext)(h.IDLE_LINK_STATUS),
+      y = () => (0, o.useContext)(g);
+    ("function" == typeof r.default ||
+      ("object" == typeof r.default && null !== r.default)) &&
+      void 0 === r.default.__esModule &&
+      (Object.defineProperty(r.default, "__esModule", { value: !0 }),
+      Object.assign(r.default, r),
+      (t.exports = r.default));
+  },
+  18581,
+  (e, t, r) => {
+    "use strict";
+    (Object.defineProperty(r, "__esModule", { value: !0 }),
+      Object.defineProperty(r, "useMergedRef", {
+        enumerable: !0,
+        get: function () {
+          return s;
+        },
+      }));
+    let a = e.r(71645);
+    function s(e, t) {
+      let r = (0, a.useRef)(null),
+        s = (0, a.useRef)(null);
+      return (0, a.useCallback)(
+        (a) => {
+          if (null === a) {
+            let e = r.current;
+            e && ((r.current = null), e());
+            let t = s.current;
+            t && ((s.current = null), t());
+          } else (e && (r.current = n(e, a)), t && (s.current = n(t, a)));
+        },
+        [e, t],
+      );
+    }
+    function n(e, t) {
+      if ("function" != typeof e)
+        return (
+          (e.current = t),
+          () => {
+            e.current = null;
+          }
+        );
+      {
+        let r = e(t);
+        return "function" == typeof r ? r : () => e(null);
+      }
+    }
+    ("function" == typeof r.default ||
+      ("object" == typeof r.default && null !== r.default)) &&
+      void 0 === r.default.__esModule &&
+      (Object.defineProperty(r.default, "__esModule", { value: !0 }),
+      Object.assign(r.default, r),
+      (t.exports = r.default));
+  },
+  18967,
+  (e, t, r) => {
+    "use strict";
+    (e.i(47167), Object.defineProperty(r, "__esModule", { value: !0 }));
+    var a = {
+      DecodeError: function () {
+        return b;
+      },
+      MiddlewareNotFoundError: function () {
+        return v;
+      },
+      MissingStaticPage: function () {
+        return j;
+      },
+      NormalizeError: function () {
+        return g;
+      },
+      PageNotFoundError: function () {
+        return y;
+      },
+      SP: function () {
+        return f;
+      },
+      ST: function () {
+        return x;
+      },
+      WEB_VITALS: function () {
+        return n;
+      },
+      execOnce: function () {
+        return l;
+      },
+      getDisplayName: function () {
+        return u;
+      },
+      getLocationOrigin: function () {
+        return c;
+      },
+      getURL: function () {
+        return d;
+      },
+      isAbsoluteUrl: function () {
+        return i;
+      },
+      isResSent: function () {
+        return m;
+      },
+      loadGetInitialProps: function () {
+        return h;
+      },
+      normalizeRepeatedSlashes: function () {
+        return p;
+      },
+      stringifyError: function () {
+        return w;
+      },
+    };
+    for (var s in a) Object.defineProperty(r, s, { enumerable: !0, get: a[s] });
+    let n = ["CLS", "FCP", "FID", "INP", "LCP", "TTFB"];
+    function l(e) {
+      let t,
+        r = !1;
+      return (...a) => (r || ((r = !0), (t = e(...a))), t);
+    }
+    let o = /^[a-zA-Z][a-zA-Z\d+\-.]*?:/,
+      i = (e) => {
+        let t = e.charCodeAt(0);
+        return !!((t >= 65 && t <= 90) || (t >= 97 && t <= 122)) && o.test(e);
+      };
+    function c() {
+      let { protocol: e, hostname: t, port: r } = window.location;
+      return `${e}//${t}${r ? ":" + r : ""}`;
+    }
+    function d() {
+      let { href: e } = window.location,
+        t = c();
+      return e.substring(t.length);
+    }
+    function u(e) {
+      return "string" == typeof e ? e : e.displayName || e.name || "Unknown";
+    }
+    function m(e) {
+      return e.finished || e.headersSent;
+    }
+    function p(e) {
+      let t = e.split("?");
+      return (
+        t[0].replace(/\\/g, "/").replace(/\/\/+/g, "/") +
+        (t[1] ? `?${t.slice(1).join("?")}` : "")
+      );
+    }
+    async function h(e, t) {
+      let r = t.res || (t.ctx && t.ctx.res);
+      if (!e.getInitialProps)
+        return t.ctx && t.Component
+          ? { pageProps: await h(t.Component, t.ctx) }
+          : {};
+      let a = await e.getInitialProps(t);
+      if (r && m(r)) return a;
+      if (!a)
+        throw Object.defineProperty(
+          Error(
+            `"${u(e)}.getInitialProps()" should resolve to an object. But found "${a}" instead.`,
+          ),
+          "__NEXT_ERROR_CODE",
+          { value: "E1025", enumerable: !1, configurable: !0 },
+        );
+      return a;
+    }
+    let f = "u" > typeof performance,
+      x =
+        f &&
+        ["mark", "measure", "getEntriesByName"].every(
+          (e) => "function" == typeof performance[e],
+        );
+    class b extends Error {}
+    class g extends Error {}
+    class y extends Error {
+      constructor(e) {
+        (super(),
+          (this.code = "ENOENT"),
+          (this.name = "PageNotFoundError"),
+          (this.message = `Cannot find module for page: ${e}`));
+      }
+    }
+    class j extends Error {
+      constructor(e, t) {
+        (super(),
+          (this.message = `Failed to load static file for page: ${e} ${t}`));
+      }
+    }
+    class v extends Error {
+      constructor() {
+        (super(),
+          (this.code = "ENOENT"),
+          (this.message = "Cannot find the middleware module"));
+      }
+    }
+    function w(e) {
+      return JSON.stringify({ message: e.message, stack: e.stack });
+    }
+  },
+  73668,
+  (e, t, r) => {
+    "use strict";
+    (Object.defineProperty(r, "__esModule", { value: !0 }),
+      Object.defineProperty(r, "isLocalURL", {
+        enumerable: !0,
+        get: function () {
+          return n;
+        },
+      }));
+    let a = e.r(18967),
+      s = e.r(52817);
+    function n(e) {
+      if (!(0, a.isAbsoluteUrl)(e)) return !0;
+      try {
+        let t = (0, a.getLocationOrigin)(),
+          r = new URL(e, t);
+        return r.origin === t && (0, s.hasBasePath)(r.pathname);
+      } catch (e) {
+        return !1;
+      }
+    }
+  },
+  98183,
+  (e, t, r) => {
+    "use strict";
+    Object.defineProperty(r, "__esModule", { value: !0 });
+    var a = {
+      assign: function () {
+        return i;
+      },
+      searchParamsToUrlQuery: function () {
+        return n;
+      },
+      urlQueryToSearchParams: function () {
+        return o;
+      },
+    };
+    for (var s in a) Object.defineProperty(r, s, { enumerable: !0, get: a[s] });
+    function n(e) {
+      let t = {};
+      for (let [r, a] of e.entries()) {
+        let e = t[r];
+        void 0 === e
+          ? (t[r] = a)
+          : Array.isArray(e)
+            ? e.push(a)
+            : (t[r] = [e, a]);
+      }
+      return t;
+    }
+    function l(e) {
+      return "string" == typeof e
+        ? e
+        : ("number" != typeof e || isNaN(e)) && "boolean" != typeof e
+          ? ""
+          : String(e);
+    }
+    function o(e) {
+      let t = new URLSearchParams();
+      for (let [r, a] of Object.entries(e))
+        if (Array.isArray(a)) for (let e of a) t.append(r, l(e));
+        else t.set(r, l(a));
+      return t;
+    }
+    function i(e, ...t) {
+      for (let r of t) {
+        for (let t of r.keys()) e.delete(t);
+        for (let [t, a] of r.entries()) e.append(t, a);
+      }
+      return e;
+    }
+  },
+  95057,
+  (e, t, r) => {
+    "use strict";
+    (e.i(47167), Object.defineProperty(r, "__esModule", { value: !0 }));
+    var a = {
+      formatUrl: function () {
+        return o;
+      },
+      formatWithValidation: function () {
+        return c;
+      },
+      urlObjectKeys: function () {
+        return i;
+      },
+    };
+    for (var s in a) Object.defineProperty(r, s, { enumerable: !0, get: a[s] });
+    let n = e.r(90809)._(e.r(98183)),
+      l = /https?|ftp|gopher|file/;
+    function o(e) {
+      let { auth: t, hostname: r } = e,
+        a = e.protocol || "",
+        s = e.pathname || "",
+        o = e.hash || "",
+        i = e.query || "",
+        c = !1;
+      ((t = t ? encodeURIComponent(t).replace(/%3A/i, ":") + "@" : ""),
+        e.host
+          ? (c = t + e.host)
+          : r &&
+            ((c = t + (~r.indexOf(":") ? `[${r}]` : r)),
+            e.port && (c += ":" + e.port)),
+        i && "object" == typeof i && (i = String(n.urlQueryToSearchParams(i))));
+      let d = e.search || (i && `?${i}`) || "";
+      return (
+        a && !a.endsWith(":") && (a += ":"),
+        e.slashes || ((!a || l.test(a)) && !1 !== c)
+          ? ((c = "//" + (c || "")), s && "/" !== s[0] && (s = "/" + s))
+          : c || (c = ""),
+        o && "#" !== o[0] && (o = "#" + o),
+        d && "?" !== d[0] && (d = "?" + d),
+        (s = s.replace(/[?#]/g, encodeURIComponent)),
+        (d = d.replace("#", "%23")),
+        `${a}${c}${s}${d}${o}`
+      );
+    }
+    let i = [
+      "auth",
+      "hash",
+      "host",
+      "hostname",
+      "href",
+      "path",
+      "pathname",
+      "port",
+      "protocol",
+      "query",
+      "search",
+      "slashes",
+    ];
+    function c(e) {
+      return o(e);
+    }
+  },
+  18566,
+  (e, t, r) => {
+    t.exports = e.r(76562);
+  },
+]);

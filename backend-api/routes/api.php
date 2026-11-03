@@ -26,6 +26,8 @@ Route::post('/login', [
     'login'
 ]);
 
+Route::post('/paypal/webhook', [\App\Http\Controllers\PayPalController::class, 'webhook']);
+
 Route::post('/stripe/webhook', [StripePaymentController::class, 'webhook']);
 
 Route::middleware('auth:sanctum')->group(function () {
@@ -92,6 +94,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/customer/tasks/{taskId}', [MarketplaceController::class, 'updateTask']);
     Route::put('/customer/tasks/{taskId}/confirm', [MarketplaceController::class, 'confirmHelper']);
     Route::put('/customer/tasks/{taskId}/confirm-completion', [MarketplaceController::class, 'confirmCompletion']);
+    Route::get('/customer/payments/{paymentId}/paypal/config', [\App\Http\Controllers\PayPalController::class, 'configuration']);
+    Route::post('/customer/payments/{paymentId}/paypal/create-order', [\App\Http\Controllers\PayPalController::class, 'createOrder']);
+    Route::post('/customer/payments/{paymentId}/paypal/capture', [\App\Http\Controllers\PayPalController::class, 'capture']);
     Route::post('/customer/payments/{paymentId}/checkout', [StripePaymentController::class, 'checkout']);
     Route::put('/tasks/{taskId}/review', [MarketplaceController::class, 'submitReview']);
 

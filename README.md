@@ -1,3 +1,8 @@
+> PayPal Sandbox checkout is prepared on `feature/paypal-sandbox-checkout`.
+> See [setup, API routes and deployment reference](docs/PAYPAL-CHECKOUT.md),
+> [validation](docs/PAYPAL-VALIDATION.md) and [changed files](docs/PAYPAL-CHANGED-FILES.md).
+> Stripe source remains; no deployment or Live activation has occurred.
+
 # UrbanHelpHub — consolidated source and Node.js development
 
 Development continues on `nodejs-migration`; `cpanel-working` preserves the prepared

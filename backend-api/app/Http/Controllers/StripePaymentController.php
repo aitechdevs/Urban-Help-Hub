@@ -17,14 +17,22 @@ class StripePaymentController extends Controller
 
     public function checkout(Request $request, int $paymentId): JsonResponse
     {
+        return DB::transaction(fn () => $this->checkoutLocked($request, $paymentId));
+    }
+
+    private function checkoutLocked(Request $request, int $paymentId): JsonResponse
+    {
         $user = $request->user();
         if ($user->role !== 'customer') {
             return response()->json(['success' => false, 'message' => 'Only the Customer can pay for a task.'], 403);
         }
 
-        $payment = DB::table('payments')->where('id', $paymentId)->first();
+        $payment = DB::table('payments')->where('id', $paymentId)->lockForUpdate()->first();
         if (!$payment || (int) $payment->customer_id !== (int) $user->id) {
             return response()->json(['success' => false, 'message' => 'Payment not found.'], 404);
+        }
+        if ($payment->paypal_create_key) {
+            return response()->json(['success' => false, 'message' => 'This payment already has a PayPal checkout.'], 409);
         }
         if ($payment->status === 'paid') {
             return response()->json(['success' => false, 'message' => 'This payment has already been completed.'], 409);

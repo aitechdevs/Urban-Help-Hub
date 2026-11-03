@@ -12,6 +12,8 @@
       o = e.i(19133),
       i = e.i(54858),
       c = e.i(13786);
+    // Keep the original Connect flow available for a reviewed future reactivation.
+    const STRIPE_PAYOUT_UI_ENABLED = false;
     let d = {
       0: "Sunday",
       1: "Monday",
@@ -238,13 +240,13 @@
                       },
                       cache: "no-store",
                     }),
-                    fetch(`${i.API_URL}/helper/stripe/status`, {
+                    STRIPE_PAYOUT_UI_ENABLED ? fetch(`${i.API_URL}/helper/stripe/status`, {
                       headers: {
                         Accept: "application/json",
                         Authorization: `Bearer ${e}`,
                       },
                       cache: "no-store",
-                    }),
+                    }) : Promise.resolve({ok: true, json: async () => ({success: true, data: null})}),
                   ]),
                   [a, n, l] = await Promise.all([t.json(), s.json(), r.json()]);
                 if (!t.ok || !a.success)
@@ -930,20 +932,20 @@
                                   (0, t.jsx)("h2", {
                                     className:
                                       "text-xl font-bold text-[#082f5b]",
-                                    children: "Stripe payouts",
+                                    children: STRIPE_PAYOUT_UI_ENABLED ? "Stripe payouts" : "Helper payouts",
                                   }),
                                 ],
                               }),
                               (0, t.jsx)("p", {
                                 className:
                                   "mt-2 max-w-2xl text-sm leading-6 text-slate-500",
-                                children: es?.ready
+                                children: !STRIPE_PAYOUT_UI_ENABLED ? "Customer checkout uses PayPal. Helper payouts are arranged separately; contact support for setup and timing." : es?.ready
                                   ? "Your payout account is ready. Earnings are transferred to your Stripe balance after the Customer pays for completed work."
                                   : "Connect a Stripe account to verify your identity and receive earnings for completed jobs.",
                               }),
                             ],
                           }),
-                          (0, t.jsx)("button", {
+                          STRIPE_PAYOUT_UI_ENABLED && (0, t.jsx)("button", {
                             type: "button",
                             disabled: ea || !es,
                             onClick: () =>
@@ -961,6 +963,9 @@
                                 : es?.connected
                                   ? "Continue Stripe setup"
                                   : "Connect Stripe",
+                          }),
+                          !STRIPE_PAYOUT_UI_ENABLED && (0, t.jsx)("a", {
+                            href: "/contact/", className: "mt-5 block rounded-xl bg-[#082f5b] px-5 py-3 text-center text-sm font-bold text-white sm:mt-0", children: "Contact support",
                           }),
                         ],
                       }),

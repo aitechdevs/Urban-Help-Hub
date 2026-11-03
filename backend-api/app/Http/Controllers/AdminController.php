@@ -133,6 +133,10 @@ class AdminController extends Controller
                 'payments.settlement_helper_net',
                 'payments.status',
                 'payments.provider',
+                'payments.paypal_order_id',
+                'payments.paypal_capture_id',
+                'payments.paypal_dispute_status',
+                'payments.refunded_amount',
                 'payments.paid_at',
                 'payments.created_at',
                 'tasks.title as task_title',
@@ -306,6 +310,10 @@ class AdminController extends Controller
             return response()->json(['success' => false, 'message' => 'Payment not found.'], 404);
         }
 
+        if ($payment->provider === 'paypal') {
+            return response()->json(['success' => false, 'message' => 'PayPal payment status is managed by verified provider confirmation.'], 409);
+        }
+
         if ($payment->provider === 'stripe') {
             return response()->json([
                 'success' => false,
@@ -358,6 +366,9 @@ class AdminController extends Controller
             $paymentPaid = $payout->payment_id && DB::table('payments')
                 ->where('id', $payout->payment_id)
                 ->where('status', 'paid')
+                ->where(function ($query) {
+                    $query->whereNull('paypal_dispute_status')->orWhere('paypal_dispute_status', '!=', 'OPEN');
+                })
                 ->exists();
             if (!$paymentPaid) {
                 return response()->json([

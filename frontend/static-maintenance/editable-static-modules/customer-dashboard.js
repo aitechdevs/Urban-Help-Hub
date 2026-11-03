@@ -13,6 +13,80 @@
       i = e.i(54858),
       c = e.i(22016),
       d = e.i(13786);
+    // One SDK namespace prevents interference with retained Stripe code or other PayPal integrations.
+    let paypalSdkPromise, paypalSdkKey;
+    function loadPayPalSdk(config) {
+      const key = `${config.client_id}:${config.currency}`;
+      if (paypalSdkPromise && paypalSdkKey !== key) return Promise.reject(Error("Reload this page before paying in another currency."));
+      if (!paypalSdkPromise) {
+        paypalSdkKey = key;
+        paypalSdkPromise = new Promise((resolve, reject) => {
+          const script = document.createElement("script");
+          script.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(config.client_id)}&currency=${encodeURIComponent(config.currency)}&intent=capture&components=buttons`;
+          script.dataset.namespace = "uhhPayPal";
+          script.onload = () => window.uhhPayPal ? resolve(window.uhhPayPal) : reject(Error("PayPal could not load."));
+          script.onerror = () => { script.remove(); paypalSdkPromise = null; reject(Error("Unable to load PayPal. Please retry.")); };
+          document.head.appendChild(script);
+        });
+      }
+      return paypalSdkPromise;
+    }
+    function PayPalCheckout({ payment }) {
+      const target = r.useRef(null), busy = r.useRef(false);
+      const [message, setMessage] = r.useState("Loading secure PayPal checkout…");
+      const [retry, setRetry] = r.useState(0), [paid, setPaid] = r.useState(false);
+      r.useEffect(() => {
+        let disposed = false, buttons;
+        async function request(path, body) {
+          const token = u();
+          if (!token) throw Error("Please sign in again.");
+          const response = await fetch(`${i.API_URL}/customer/payments/${payment.id}/paypal/${path}`, {
+            method: body === undefined ? "GET" : "POST",
+            headers: { Accept: "application/json", "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            ...(body === undefined ? {} : { body: JSON.stringify(body) }), cache: "no-store",
+          });
+          const result = await response.json();
+          if (!response.ok || !result.success) throw Error(result.message || "Payment could not be confirmed. Please retry.");
+          return result.data;
+        }
+        setMessage("Loading secure PayPal checkout…");
+        request("config").then(async config => {
+          const sdk = await loadPayPalSdk(config);
+          if (disposed) return;
+          buttons = sdk.Buttons({
+            style: { layout: "vertical", shape: "rect", label: "paypal" },
+            createOrder: async () => {
+              if (busy.current) throw Error("Payment is already in progress.");
+              busy.current = true;
+              setMessage("Opening PayPal…");
+              try { const order = await request("create-order", {}); return order.order_id; }
+              catch (error) { busy.current = false; throw error; }
+            },
+            onApprove: async data => {
+              setMessage("Confirming your payment…");
+              try {
+                const result = await request("capture", { order_id: data.orderID });
+                if (result.status !== "paid") throw Error("Payment is awaiting confirmation. Refresh your dashboard shortly.");
+                if (!disposed) { setPaid(true); setMessage("Payment received. Helper payout is handled separately."); }
+              } catch (error) { if (!disposed) setMessage(error.message || "Payment could not be confirmed. Please retry."); }
+              finally { busy.current = false; }
+            },
+            onCancel: () => { busy.current = false; if (!disposed) setMessage("Payment cancelled. You can try again."); },
+            onError: () => { busy.current = false; if (!disposed) setMessage("PayPal could not confirm payment. Please retry or contact support."); },
+          });
+          if (!buttons.isEligible()) throw Error("PayPal checkout is unavailable in this browser.");
+          await buttons.render(target.current);
+          if (!disposed) setMessage("");
+        }).catch(error => { if (!disposed) setMessage(error.message || "Unable to load PayPal."); });
+        return () => { disposed = true; if (buttons) Promise.resolve(buttons.close()).catch(() => {}); };
+      }, [payment.id, retry]);
+      return t.jsxs("div", { className: "mt-3", children: [
+        t.jsx("div", { ref: target, hidden: paid, className: "max-w-sm", "aria-label": "Pay with PayPal" }),
+        t.jsx("p", { role: "status", "aria-live": "polite", className: "mt-2 text-sm", children: message }),
+        !paid && t.jsx("button", { type: "button", className: "mt-2 underline", onClick: () => { if (!busy.current) setRetry(value => value + 1); }, children: "Reload payment options" }),
+        paid && t.jsx("button", { type: "button", className: "mt-2 underline", onClick: () => window.location.reload(), children: "Refresh payment status" }),
+      ] });
+    }
     function u() {
       return (
         sessionStorage.getItem("urbanhelphub_token") ||
@@ -45,7 +119,7 @@
           [A] = (0, r.useState)(() =>
             "success" ===
             new URLSearchParams(window.location.search).get("payment")
-              ? "Payment successful. Stripe is confirming your receipt and the Helper payout."
+              ? "Payment confirmation is being checked. Refresh your dashboard for the latest status."
               : "",
           );
         (0,r.useEffect)(()=>{ if(!h?.id)return; let cancelled=false; const token=u(); if(!token)return;
@@ -135,7 +209,7 @@
               if (!s.ok || !n.success)
                 throw Error(n.message || "Unable to update this task.");
               if ("confirm-completion" === t && n.data?.payment_id)
-                return void (await E(n.data.payment_id));
+                return void window.location.reload();
               window.location.reload();
             } catch (e) {
               (_(
@@ -699,7 +773,7 @@
                                                                     onClick:
                                                                       () =>
                                                                         window.confirm(
-                                                                          "Confirm that this job has been completed satisfactorily? Payment will be collected securely through Stripe.",
+                                                                          "Confirm that this job has been completed satisfactorily? Payment will be collected securely through PayPal.",
                                                                         ) &&
                                                                         I(
                                                                           e.id,
@@ -828,21 +902,8 @@
                                                         ),
                                                       ],
                                                     }),
-                                                    "paid" !==
-                                                      e.payment.status &&
-                                                      (0, t.jsx)("button", {
-                                                        type: "button",
-                                                        disabled:
-                                                          C === e.payment.id,
-                                                        onClick: () =>
-                                                          E(e.payment.id),
-                                                        className:
-                                                          "mt-3 rounded-xl bg-[var(--navy)] px-4 py-2.5 font-black text-white disabled:opacity-50",
-                                                        children:
-                                                          C === e.payment.id
-                                                            ? "Opening Stripe..."
-                                                            : "Pay securely with Stripe",
-                                                      }),
+                                                    ["pending", "failed"].includes(e.payment.status) &&
+                                                      (0, t.jsx)(PayPalCheckout, { payment: e.payment }),
                                                   ],
                                                 }),
                                             ],

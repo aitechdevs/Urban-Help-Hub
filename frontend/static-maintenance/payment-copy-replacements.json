@@ -1,0 +1,40 @@
+{
+  "terms": [
+    [
+      "Payments are processed securely by Stripe.",
+      "Customer checkout is provided through PayPal."
+    ],
+    [
+      "Helpers must complete Stripe onboarding before receiving payouts.",
+      "Helper payouts are arranged separately from customer checkout."
+    ],
+    [
+      "is transferred to the Helper's Stripe balance. Stripe controls the timing of bank payouts.",
+      "is paid to the Helper separately from customer checkout. Payout timing depends on the agreed payout method."
+    ]
+  ],
+  "privacy": [
+    [
+      "Stripe collects and processes payment, identity and bank details under its own privacy terms;",
+      "Our payment providers collect and process payment, identity and bank details under their own privacy terms;"
+    ],
+    [
+      "We may share information with Stripe, hosting,",
+      "We may share information with payment processing, hosting,"
+    ]
+  ],
+  "refund-policy": [
+    [
+      "We may consult both parties and Stripe.",
+      "We may consult both parties and the payment provider."
+    ],
+    [
+      "A refund, reversal or chargeback may proportionally reverse the commission and Helper payout.",
+      "A refund, reversal or chargeback may require corresponding adjustments to the commission and Helper payout."
+    ],
+    [
+      "Stripe fees may be treated according to Stripe's then-current rules and applicable law.",
+      "Payment processing fees may be treated according to the provider's then-current rules and applicable law."
+    ]
+  ]
+}
