@@ -117,8 +117,11 @@ class AdminController extends Controller
             ->join('users as customers', 'payments.customer_id', '=', 'customers.id')
             ->leftJoin('users as helpers', 'payments.helper_id', '=', 'helpers.id')
             ->leftJoin('payouts', 'payments.id', '=', 'payouts.payment_id')
+            ->leftJoin('paypal_payout_accounts', 'payments.helper_id', '=', 'paypal_payout_accounts.helper_id')
             ->select([
                 'payments.id',
+                'payments.helper_id',
+                'payments.commission_percent',
                 'payments.task_id',
                 'payments.currency',
                 'payments.subtotal_amount',
@@ -146,11 +149,28 @@ class AdminController extends Controller
                 'payouts.net_amount as helper_net',
                 'payouts.status as payout_status',
                 'payouts.paid_at as payout_paid_at',
+                'payouts.approved_at as payout_approved_at',
+                'payouts.approved_by as payout_approved_by',
+                'payouts.paypal_transaction_status as payout_provider_status',
+                'payouts.paypal_recipient as payout_recipient_encrypted',
+                'paypal_payout_accounts.recipient as payout_account_encrypted',
             ])
             ->orderByDesc('payments.created_at')
             ->get();
 
-        return response()->json(['success' => true, 'data' => $payments]);
+        foreach ($payments as $payment) {
+            $encrypted = $payment->payout_account_encrypted;
+            $payment->payout_account_version = $encrypted ? app(\App\Services\PayPalPayoutService::class)->accountVersion((int) $payment->helper_id, $encrypted) : null;
+            try {
+                $recipient = $payment->payout_recipient_encrypted ?: $encrypted;
+                $payment->payout_recipient = $recipient ? \Illuminate\Support\Facades\Crypt::decryptString($recipient) : null;
+            } catch (\Throwable) {
+                $payment->payout_recipient = null;
+                $payment->payout_account_version = null;
+            }
+            unset($payment->payout_account_encrypted, $payment->payout_recipient_encrypted);
+        }
+        return response()->json(['success' => true, 'data' => $payments])->header('Cache-Control', 'no-store');
     }
 
     public function tasks(Request $request): JsonResponse
@@ -353,6 +373,10 @@ class AdminController extends Controller
         $payout = DB::table('payouts')->where('id', $payoutId)->first();
         if (!$payout) {
             return response()->json(['success' => false, 'message' => 'Payout not found.'], 404);
+        }
+
+        if ($payout->paypal_sender_batch_id || DB::table('payments')->where('id', $payout->payment_id)->where('provider', 'paypal')->exists()) {
+            return response()->json(['success' => false, 'message' => 'PayPal payouts require admin approval and provider-confirmed processing.'], 409);
         }
 
         if ($payout->provider === 'stripe') {

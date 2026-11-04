@@ -62,6 +62,37 @@ class PayPalService
         return $response->json();
     }
 
+    /** A duplicate sender batch is reconciled to its existing provider ID, never replaced. */
+    public function submitPayout(array $payload, string $key): array
+    {
+        $response = Http::acceptJson()->asJson()->withToken($this->token())->connectTimeout(5)->timeout(25)
+            ->withOptions(['allow_redirects' => false])->withHeaders(['PayPal-Request-Id' => $key])
+            ->post($this->base().'/v1/payments/payouts', $payload);
+        $body = $response->json();
+        if ($response->successful() && is_array($body)) {
+            return $body;
+        }
+        $duplicate = is_array($body) && (($body['name'] ?? null) === 'DUPLICATE_BATCH_ID' || collect($body['details'] ?? [])->contains(fn ($detail) => ($detail['issue'] ?? null) === 'DUPLICATE_BATCH_ID'));
+        if ($duplicate) {
+            $links = array_merge($body['links'] ?? [], ...array_map(fn ($detail) => $detail['links'] ?? [], $body['details'] ?? []));
+            foreach ($links as $link) {
+                if (preg_match('~/v1/payments/payouts/([A-Z0-9]{5,64})(?:\?|$)~', $link['href'] ?? '', $matches)) {
+                    return ['batch_header' => ['payout_batch_id' => $matches[1]]];
+                }
+            }
+        }
+        throw new RuntimeException('PayPal payout submission requires reconciliation.');
+    }
+
+    public function payoutBatch(string $id): array
+    {
+        if (! preg_match('/^[A-Z0-9]{5,64}$/', $id)) {
+            throw new RuntimeException('Invalid PayPal payout reference.');
+        }
+
+        return $this->request('GET', '/v1/payments/payouts/'.$id.'?page_size=1000');
+    }
+
     public function order(string $id): array
     {
         if (! preg_match('/^[A-Z0-9]{5,64}$/', $id)) {

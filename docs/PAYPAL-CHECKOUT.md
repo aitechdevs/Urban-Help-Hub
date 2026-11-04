@@ -1,3 +1,5 @@
+> This source branch now includes admin-approved automatic helper payouts. The manual-only payout discussion below describes the earlier checkout increment; use [PAYPAL-PAYOUTS.md](PAYPAL-PAYOUTS.md) for current payout setup, approval controls and processing. Checkout security/routes below remain applicable.
+
 # PayPal Sandbox checkout
 
 This branch extends `nodejs-migration` at `ad5c5ac3ac885c3400be488a2acbbdf91bbbd4f1`. It is prepared code, not a deployment. `cpanel-working` and production remain unchanged. The existing snapshot has not been certified against a fresh cPanel export.

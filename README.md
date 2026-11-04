@@ -1,3 +1,8 @@
+> **Admin-approved automatic PayPal payouts:** use branch `feature/paypal-admin-approved-payouts`.
+> Customer completion + verified collection → 30% platform / 70% helper → admin approval → PayPal transfer.
+> [Setup and source guide](docs/PAYPAL-PAYOUTS.md) · [Validation](docs/PAYPAL-PAYOUTS-VALIDATION.md).
+> Payout switches are off by default. No live deployment or real transfer has been performed.
+
 > PayPal Sandbox checkout is prepared on `feature/paypal-sandbox-checkout`.
 > See [setup, API routes and deployment reference](docs/PAYPAL-CHECKOUT.md),
 > [validation](docs/PAYPAL-VALIDATION.md) and [changed files](docs/PAYPAL-CHANGED-FILES.md).

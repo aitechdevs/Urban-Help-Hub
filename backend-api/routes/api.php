@@ -85,6 +85,8 @@ Route::middleware('auth:sanctum')->group(function () {
         'deleteDocument'
     ]);
 
+    Route::get('/helper/paypal/payout-account', [\App\Http\Controllers\PayPalPayoutController::class, 'account']);
+    Route::put('/helper/paypal/payout-account', [\App\Http\Controllers\PayPalPayoutController::class, 'saveAccount'])->middleware('throttle:6,1');
     Route::get('/helper/stripe/status', [StripeConnectController::class, 'status']);
     Route::post('/helper/stripe/onboarding-link', [StripeConnectController::class, 'onboardingLink']);
     Route::post('/helper/stripe/dashboard-link', [StripeConnectController::class, 'dashboardLink']);
@@ -154,6 +156,8 @@ Route::middleware('auth:sanctum')->group(function () {
                 'updatePaymentStatus'
             ]);
 
+            Route::post('/payouts/{payoutId}/approve-paypal', [\App\Http\Controllers\PayPalPayoutController::class, 'approve'])->middleware('throttle:10,1');
+            Route::post('/payouts/{payoutId}/reconcile-paypal', [\App\Http\Controllers\PayPalPayoutController::class, 'reconcile'])->middleware('throttle:10,1');
             Route::put('/payouts/{payoutId}/status', [
                 AdminController::class,
                 'updatePayoutStatus'

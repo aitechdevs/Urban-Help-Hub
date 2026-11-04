@@ -35,8 +35,12 @@ return [
         ],
     ],
 
+    'marketplace' => ['commission_percent' => 30],
+
     'paypal' => [
         'mode' => env('PAYPAL_MODE', 'sandbox'),
+        'payouts_enabled' => (bool) env('PAYPAL_PAYOUTS_ENABLED', false),
+        'live_payouts_enabled' => (bool) env('PAYPAL_LIVE_PAYOUTS_ENABLED', false),
         'client_id' => env('PAYPAL_CLIENT_ID'),
         'client_secret' => env('PAYPAL_CLIENT_SECRET'),
         'webhook_id' => env('PAYPAL_WEBHOOK_ID'),

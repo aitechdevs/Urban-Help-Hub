@@ -6,11 +6,11 @@
     ],
     [
       "Helpers must complete Stripe onboarding before receiving payouts.",
-      "Helper payouts are arranged separately from customer checkout."
+      "Helper payouts are sent through PayPal after customer confirmation, verified payment and administrator approval."
     ],
     [
       "is transferred to the Helper's Stripe balance. Stripe controls the timing of bank payouts.",
-      "is paid to the Helper separately from customer checkout. Payout timing depends on the agreed payout method."
+      "is paid to the Helper through PayPal after administrator approval. PayPal processing times and payout eligibility apply."
     ]
   ],
   "privacy": [

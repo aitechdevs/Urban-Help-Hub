@@ -67,7 +67,7 @@
               try {
                 const result = await request("capture", { order_id: data.orderID });
                 if (result.status !== "paid") throw Error("Payment is awaiting confirmation. Refresh your dashboard shortly.");
-                if (!disposed) { setPaid(true); setMessage("Payment received. Helper payout is handled separately."); }
+                if (!disposed) { setPaid(true); setMessage("Payment received. The helper payout is awaiting admin approval."); }
               } catch (error) { if (!disposed) setMessage(error.message || "Payment could not be confirmed. Please retry."); }
               finally { busy.current = false; }
             },

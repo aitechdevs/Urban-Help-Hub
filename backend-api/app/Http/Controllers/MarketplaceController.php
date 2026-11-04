@@ -400,7 +400,7 @@ class MarketplaceController extends Controller
             );
             $hours = $minutes / 60;
             $subtotal = round($hours * (float) ($assignment->agreed_hourly_rate ?? 0), 2);
-            $feePercent = max(0, min(100, (float) config('services.stripe.platform_fee_percent', 30)));
+            $feePercent = max(0, min(100, (float) config('services.marketplace.commission_percent', 30)));
             $platformFee = round($subtotal * ($feePercent / 100), 2);
             $helperNet = round($subtotal - $platformFee, 2);
             $transactionCurrency = $task->currency ?: 'CAD';
@@ -426,6 +426,7 @@ class MarketplaceController extends Controller
                     'customer_id' => $user->id,
                     'helper_id' => $assignment->helper_id,
                     'provider' => 'stripe',
+                    'commission_percent' => 30,
                     'currency' => $transactionCurrency,
                     'settlement_currency' => 'CAD',
                     'settlement_exchange_rate' => $settlementRate,
@@ -474,7 +475,7 @@ class MarketplaceController extends Controller
                 (int) $assignment->helper_id,
                 'completion_confirmed',
                 'Job completion approved',
-                'The Customer approved completion of “'.$task->title.'”. Your payout is being processed.',
+                'The Customer approved completion of “'.$task->title.'”. Your earnings will be eligible for admin payout approval once the Customer payment is verified.',
                 '/helper/dashboard',
                 ['task_id' => $taskId, 'payment_id' => $paymentId]
             );

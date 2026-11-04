@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\PayPalPayoutService;
 use App\Services\PayPalService;
 use App\Support\InAppNotification;
 use Illuminate\Http\JsonResponse;
@@ -130,6 +131,11 @@ class PayPalController extends Controller
     private function processEvent(array $event): void
     {
         $type = $event['event_type'];
+        if (str_starts_with($type, 'PAYMENT.PAYOUTS')) {
+            app(PayPalPayoutService::class)->processWebhook($event);
+
+            return;
+        }
         if (! str_starts_with($type, 'PAYMENT.CAPTURE.') && ! str_starts_with($type, 'CUSTOMER.DISPUTE.')) {
             return;
         }
@@ -172,6 +178,9 @@ class PayPalController extends Controller
             }
             if ($type === 'CUSTOMER.DISPUTE.RESOLVED' || $existing !== 'RESOLVED' || $payment->paypal_dispute_id !== $disputeId) {
                 DB::table('payments')->where('id', $payment->id)->update(['paypal_dispute_id' => $disputeId, 'paypal_dispute_status' => $type === 'CUSTOMER.DISPUTE.RESOLVED' ? 'RESOLVED' : 'OPEN', 'updated_at' => now()]);
+                if ($type !== 'CUSTOMER.DISPUTE.RESOLVED' && $existing !== 'OPEN') {
+                    app(PayPalPayoutService::class)->notifyPaymentRisk((int) $payment->id);
+                }
             }
         }
         if ($type === 'PAYMENT.CAPTURE.REVERSED') {
@@ -179,6 +188,9 @@ class PayPalController extends Controller
                 throw new RuntimeException('PayPal reversal mismatch.');
             }
             DB::table('payments')->where('id', $payment->id)->update(['status' => 'reversed', 'failure_reason' => 'PayPal capture reversed; reconcile any helper payout.', 'updated_at' => now()]);
+            if ($payment->status !== 'reversed') {
+                app(PayPalPayoutService::class)->notifyPaymentRisk((int) $payment->id);
+            }
         }
     }
 
@@ -237,6 +249,12 @@ class PayPalController extends Controller
             throw new RuntimeException('PayPal capture is not complete.');
         }
         DB::table('payments')->where('id', $payment->id)->update($update);
+        if (in_array($update['status'] ?? null, ['refunded', 'partially_refunded', 'reversed'], true) && (($update['status'] ?? null) !== $payment->status || ($update['refunded_amount'] ?? $payment->refunded_amount) != $payment->refunded_amount)) {
+            app(PayPalPayoutService::class)->notifyPaymentRisk((int) $payment->id);
+        }
+        if (($update['status'] ?? null) === 'paid') {
+            app(PayPalPayoutService::class)->notifyEligible((int) $payment->id);
+        }
     }
 
     private function ownedPayment(Request $request, int $paymentId): object

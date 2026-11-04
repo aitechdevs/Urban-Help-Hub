@@ -11,6 +11,6 @@ test('customer payment policies describe current checkout and separate payouts w
   }
   const terms = await readFile(new URL('../public_html/terms/index.html', import.meta.url), 'utf8');
   assert.match(terms, /Customer checkout is provided through PayPal/);
-  assert.match(terms, /Helper payouts are arranged separately from customer checkout/);
+  assert.match(terms, /Helper payouts are sent through PayPal after customer confirmation, verified payment and administrator approval/);
   assert.match(terms, /30% platform commission/);
 });

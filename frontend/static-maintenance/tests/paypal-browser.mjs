@@ -58,7 +58,7 @@ try {
       await expect(button).toBeVisible();
       await expect(page.getByText('Pay securely with Stripe', { exact: true })).toHaveCount(0);
       await button.click();
-      if (scenario === 'success') await expect(page.getByText('Payment received. Helper payout is handled separately.')).toBeVisible();
+      if (scenario === 'success') await expect(page.getByText('Payment received. The helper payout is awaiting admin approval.')).toBeVisible();
       if (scenario === 'cancel') await expect(page.getByText('Payment cancelled. You can try again.')).toBeVisible();
       if (scenario === 'failure') {
         await expect(page.getByText('Payment could not be confirmed.', { exact: true })).toBeVisible();
@@ -80,7 +80,8 @@ try {
     const user = { id: role === 'helper' ? 2 : 3, name: 'Test ' + role, email: role + '@example.test', role, status: 'active' };
     await context.addInitScript(user => { localStorage.setItem('urbanhelphub_token', 'synthetic-token'); localStorage.setItem('urbanhelphub_user', JSON.stringify(user)); }, user);
     const page = await context.newPage();
-    const paths = [], errors = [];
+    const paths = [], errors = [], payoutPosts = [];
+    let approved = false, payoutPaid = false;
     page.on('pageerror', error => errors.push(error.message));
     await page.route('**/*', async route => {
       const url = new URL(route.request().url());
@@ -88,14 +89,29 @@ try {
         paths.push(url.pathname);
         let data = [];
         if (url.pathname.endsWith('/user')) data = { user };
+        if (url.pathname.endsWith('/helper/paypal/payout-account')) {
+          if (route.request().method() === 'PUT') {
+            assert.deepEqual(route.request().postDataJSON(), { email: 'new-helper@example.test', password: 'synthetic-password' });
+            return route.fulfill({ json: {success: true, message: 'Payout account saved.'} });
+          }
+          data = {email: 'helper@example.test'};
+        }
+        if (url.pathname.endsWith('/approve-paypal')) {
+          payoutPosts.push(route.request().postDataJSON()); approved = true;
+          return route.fulfill({ json: {success: true, data: {status: 'processing'}} });
+        }
+        if (url.pathname.endsWith('/reconcile-paypal')) {
+          payoutPaid = true;
+          return route.fulfill({ json: {success: true, data: {status: 'paid'}} });
+        }
         if (url.pathname.endsWith('/notifications')) data = { notifications: [], unread_count: 0 };
         if (url.pathname.endsWith('/helper/onboarding')) data = { user, profile: { verification_status: 'verified', city: 'Toronto' }, services: [{ id: 1, name: 'Cleaning', slug: 'cleaning', approval_status: 'approved', is_active: 1 }], availability: [], documents: [] };
         if (url.pathname.endsWith('/admin/review/summary')) data = { admin: user, stats: { pending_helpers: 0, pending_services: 0, verified_helpers: 1, active_helpers: 1, total_customers: 1, total_helpers: 1, completed_tasks: 3, pending_payments: 1, pending_payouts: 2, gross_volume: 300, platform_revenue: 90, pending_tasks: 0 } };
         if (url.pathname.endsWith('/admin/payments')) data = [
           { id: 4, status: 'pending', task_title: 'Pending job', provider: 'paypal' },
-          { id: 5, status: 'paid', task_title: 'Paid job', provider: 'paypal', payout_id: 10, payout_status: 'pending' },
+          { id: 5, status: 'paid', task_title: 'Paid job', provider: 'paypal', payout_id: 10, payout_status: payoutPaid ? 'paid' : approved ? 'processing' : 'pending', payout_approved_at: approved ? '2026-11-04 12:00:00' : null },
           { id: 6, status: 'paid', task_title: 'Disputed job', provider: 'paypal', payout_id: 11, payout_status: 'pending', paypal_dispute_status: 'OPEN' },
-        ].map(item => ({ task_id: item.id, title: item.task_title, customer_name: 'Test Customer', helper_name: 'Test Helper', currency: 'CAD', total_amount: 100, platform_fee: 30, settlement_total_amount: 100, settlement_helper_net: 70, ...item }));
+        ].map(item => ({ task_id: item.id, title: item.task_title, customer_name: 'Test Customer', helper_name: 'Test Helper', currency: 'CAD', total_amount: 100, platform_fee: 30, settlement_total_amount: 100, settlement_helper_net: 70, helper_net: 70, payout_recipient: 'helper@example.test', payout_account_version: 'a'.repeat(64), ...item }));
         return route.fulfill({ json: { success: true, data } });
       }
       if (url.origin === base) return route.continue();
@@ -104,14 +120,28 @@ try {
     await page.goto(base + (role === 'helper' ? '/helper/dashboard/' : '/admin/'));
     if (role === 'helper') {
       await expect(page.getByRole('heading', { name: 'Helper payouts', exact: true })).toBeVisible();
-      await expect(page.getByText('Customer checkout uses PayPal. Helper payouts are arranged separately; contact support for setup and timing.')).toBeVisible();
+      await expect(page.getByText('Customer checkout uses PayPal. Helper payouts are sent through PayPal after admin approval.')).toBeVisible();
       await expect(page.getByRole('button', { name: /Connect Stripe|Open Stripe Dashboard|Continue Stripe setup/ })).toHaveCount(0);
       assert.ok(!paths.some(path => path.includes('/stripe/')));
+      await expect(page.getByLabel('PayPal payout email', {exact: true})).toHaveValue('helper@example.test');
+      await page.getByLabel('PayPal payout email', {exact: true}).fill('new-helper@example.test');
+      await page.getByLabel('Confirm your UrbanHelpHub password', {exact: true}).fill('synthetic-password');
+      await page.getByRole('button', {name: 'Save PayPal payout account', exact: true}).click();
+      await expect(page.getByText('Payout account saved.', {exact: true})).toBeVisible();
+      await expect(page.getByLabel('Confirm your UrbanHelpHub password', {exact: true})).toHaveValue('');
     } else {
       await expect(page.getByText('Managed by PayPal', { exact: true })).toBeVisible();
       await expect(page.getByRole('button', { name: 'Mark payment paid', exact: true })).toHaveCount(0);
-      await expect(page.getByRole('button', { name: 'Record completed Helper payout', exact: true })).toHaveCount(1);
+      await expect(page.getByRole('button', { name: 'Record completed Helper payout', exact: true })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Approve and send 70%', exact: true })).toHaveCount(1);
       await expect(page.getByText(/Payment disputed: reconcile before payout/)).toBeVisible();
+      page.once('dialog', dialog => dialog.accept());
+      await page.getByRole('button', {name: 'Approve and send 70%', exact: true}).click();
+      await expect(page.getByRole('button', {name: 'Check existing PayPal payout', exact: true})).toBeVisible();
+      assert.deepEqual(payoutPosts, [{account_version: 'a'.repeat(64)}]);
+      await expect(page.getByText('✓ Settled', {exact: true})).toHaveCount(0);
+      await page.getByRole('button', {name: 'Check existing PayPal payout', exact: true}).click();
+      await expect(page.getByText('✓ Settled', {exact: true})).toHaveCount(1);
     }
     assert.deepEqual(errors, []);
     console.log(`PASS: ${role} PayPal collection and separate payout controls`);

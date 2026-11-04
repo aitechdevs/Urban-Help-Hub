@@ -23,6 +23,34 @@
       5: "Friday",
       6: "Saturday",
     };
+    function PayPalPayoutAccount() {
+      const [email, setEmail] = s.useState(""), [password, setPassword] = s.useState("");
+      const [message, setMessage] = s.useState(""), [busy, setBusy] = s.useState(false);
+      s.useEffect(() => {
+        let active = true;
+        fetch(`${i.API_URL}/helper/paypal/payout-account`, {headers: {Accept: "application/json", Authorization: `Bearer ${u()}`}, cache: "no-store"})
+          .then(async response => { const result = await response.json(); if (!response.ok) throw Error("Unable to load payout account."); if (active) setEmail(result.data.email || ""); })
+          .catch(error => { if (active) setMessage(error.message); });
+        return () => { active = false; };
+      }, []);
+      async function save(event) {
+        event.preventDefault(); if (busy) return; setBusy(true); setMessage("");
+        try {
+          const response = await fetch(`${i.API_URL}/helper/paypal/payout-account`, {method: "PUT", headers: {Accept: "application/json", "Content-Type": "application/json", Authorization: `Bearer ${u()}`}, body: JSON.stringify({email, password}), cache: "no-store"});
+          const result = await response.json(); if (!response.ok || !result.success) throw Error(result.message || "Unable to save payout account.");
+          setPassword(""); setMessage(result.message);
+        } catch (error) { setMessage(error.message || "Unable to save payout account."); }
+        finally { setBusy(false); }
+      }
+      return t.jsxs("form", {onSubmit: save, className: "mt-4 space-y-3", children: [
+        t.jsx("p", {className: "text-sm text-slate-500", children: "Your earnings are 70% of the service subtotal. After customer confirmation and verified payment, an admin reviews and approves your PayPal payout. Processing fees are paid by the platform."}),
+        t.jsx("label", {className: "block text-sm font-bold", children: ["PayPal payout email", t.jsx("input", {type: "email", required: true, maxLength: 254, value: email, onChange: event => setEmail(event.target.value), className: "mt-1 block w-full rounded-xl border border-slate-300 px-3 py-2", autoComplete: "email"})]}),
+        t.jsx("p", {className: "text-sm text-slate-500", children: "Check this address carefully. It identifies the PayPal account receiving your earnings. Changes do not redirect transfers already approved."}),
+        t.jsx("label", {className: "block text-sm font-bold", children: ["Confirm your UrbanHelpHub password", t.jsx("input", {type: "password", required: true, value: password, onChange: event => setPassword(event.target.value), className: "mt-1 block w-full rounded-xl border border-slate-300 px-3 py-2", autoComplete: "current-password"})]}),
+        t.jsx("button", {type: "submit", disabled: busy, className: "rounded-xl bg-[#082f5b] px-5 py-3 text-sm font-bold text-white disabled:opacity-50", children: busy ? "Saving…" : "Save PayPal payout account"}),
+        t.jsx("p", {role: "status", "aria-live": "polite", className: "text-sm", children: message}),
+      ]});
+    }
     function u() {
       return (
         sessionStorage.getItem("urbanhelphub_token") ||
@@ -939,7 +967,7 @@
                               (0, t.jsx)("p", {
                                 className:
                                   "mt-2 max-w-2xl text-sm leading-6 text-slate-500",
-                                children: !STRIPE_PAYOUT_UI_ENABLED ? "Customer checkout uses PayPal. Helper payouts are arranged separately; contact support for setup and timing." : es?.ready
+                                children: !STRIPE_PAYOUT_UI_ENABLED ? "Customer checkout uses PayPal. Helper payouts are sent through PayPal after admin approval." : es?.ready
                                   ? "Your payout account is ready. Earnings are transferred to your Stripe balance after the Customer pays for completed work."
                                   : "Connect a Stripe account to verify your identity and receive earnings for completed jobs.",
                               }),
@@ -964,9 +992,7 @@
                                   ? "Continue Stripe setup"
                                   : "Connect Stripe",
                           }),
-                          !STRIPE_PAYOUT_UI_ENABLED && (0, t.jsx)("a", {
-                            href: "/contact/", className: "mt-5 block rounded-xl bg-[#082f5b] px-5 py-3 text-center text-sm font-bold text-white sm:mt-0", children: "Contact support",
-                          }),
+                          !STRIPE_PAYOUT_UI_ENABLED && (0, t.jsx)(PayPalPayoutAccount, {}),
                         ],
                       }),
                       (0, t.jsxs)("div", {
