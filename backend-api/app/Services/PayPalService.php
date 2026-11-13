@@ -12,6 +12,8 @@ class PayPalService
     public function mode(): string
     {
         $mode = config('services.paypal.mode');
+        abort_unless(config('services.paypal.integration_model', 'checkout_payouts') === 'checkout_payouts', 409, 'Connected Path requires its approved integration adapter before payments can be enabled.');
+        abort_if($mode === 'live' && ! config('services.paypal.live_direct_model_approved', false), 409, 'Live direct collection is disabled pending approval of this payment model.');
         if (! in_array($mode, ['sandbox', 'live'], true)) {
             throw new RuntimeException('PayPal configuration is unavailable.');
         }

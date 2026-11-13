@@ -400,7 +400,7 @@ class MarketplaceController extends Controller
             );
             $hours = $minutes / 60;
             $subtotal = round($hours * (float) ($assignment->agreed_hourly_rate ?? 0), 2);
-            $feePercent = max(0, min(100, (float) config('services.marketplace.commission_percent', 30)));
+            $feePercent = max(0, min(100, (float) config('services.marketplace.commission_percent', 40)));
             $platformFee = round($subtotal * ($feePercent / 100), 2);
             $helperNet = round($subtotal - $platformFee, 2);
             $transactionCurrency = $task->currency ?: 'CAD';
@@ -426,7 +426,7 @@ class MarketplaceController extends Controller
                     'customer_id' => $user->id,
                     'helper_id' => $assignment->helper_id,
                     'provider' => 'stripe',
-                    'commission_percent' => 30,
+                    'commission_percent' => $feePercent,
                     'currency' => $transactionCurrency,
                     'settlement_currency' => 'CAD',
                     'settlement_exchange_rate' => $settlementRate,

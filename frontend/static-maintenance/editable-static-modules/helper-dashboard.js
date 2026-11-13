@@ -43,7 +43,7 @@
         finally { setBusy(false); }
       }
       return t.jsxs("form", {onSubmit: save, className: "mt-4 space-y-3", children: [
-        t.jsx("p", {className: "text-sm text-slate-500", children: "Your earnings are 70% of the service subtotal. After customer confirmation and verified payment, an admin reviews and approves your PayPal payout. Processing fees are paid by the platform."}),
+        t.jsx("p", {className: "text-sm text-slate-500", children: "For new payment records, UrbanHelpHub records a 40% commission and your gross earnings are 60% of the service subtotal. Existing payment records retain their agreed split. After customer confirmation and verified payment, an admin reviews the recorded payout. Fee allocation must follow the approved payment terms."}),
         t.jsx("label", {className: "block text-sm font-bold", children: ["PayPal payout email", t.jsx("input", {type: "email", required: true, maxLength: 254, value: email, onChange: event => setEmail(event.target.value), className: "mt-1 block w-full rounded-xl border border-slate-300 px-3 py-2", autoComplete: "email"})]}),
         t.jsx("p", {className: "text-sm text-slate-500", children: "Check this address carefully. It identifies the PayPal account receiving your earnings. Changes do not redirect transfers already approved."}),
         t.jsx("label", {className: "block text-sm font-bold", children: ["Confirm your UrbanHelpHub password", t.jsx("input", {type: "password", required: true, value: password, onChange: event => setPassword(event.target.value), className: "mt-1 block w-full rounded-xl border border-slate-300 px-3 py-2", autoComplete: "current-password"})]}),

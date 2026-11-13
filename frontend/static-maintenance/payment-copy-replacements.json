@@ -11,6 +11,14 @@
     [
       "is transferred to the Helper's Stripe balance. Stripe controls the timing of bank payouts.",
       "is paid to the Helper through PayPal after administrator approval. PayPal processing times and payout eligibility apply."
+    ],
+    [
+      "30% platform commission",
+      "40% platform commission"
+    ],
+    [
+      "remaining 70%",
+      "remaining 60%"
     ]
   ],
   "privacy": [
@@ -35,6 +43,10 @@
     [
       "Stripe fees may be treated according to Stripe's then-current rules and applicable law.",
       "Payment processing fees may be treated according to the provider's then-current rules and applicable law."
+    ],
+    [
+      "30% commission",
+      "40% commission"
     ]
   ]
 }

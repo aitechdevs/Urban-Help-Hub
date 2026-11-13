@@ -110,8 +110,9 @@ try {
         if (url.pathname.endsWith('/admin/payments')) data = [
           { id: 4, status: 'pending', task_title: 'Pending job', provider: 'paypal' },
           { id: 5, status: 'paid', task_title: 'Paid job', provider: 'paypal', payout_id: 10, payout_status: payoutPaid ? 'paid' : approved ? 'processing' : 'pending', payout_approved_at: approved ? '2026-11-04 12:00:00' : null },
+          { id: 8, status: 'paid', task_title: 'Historical job', provider: 'paypal', payout_id: 12, payout_status: 'pending', commission_percent: 30, platform_fee: 30, helper_net: 70 },
           { id: 6, status: 'paid', task_title: 'Disputed job', provider: 'paypal', payout_id: 11, payout_status: 'pending', paypal_dispute_status: 'OPEN' },
-        ].map(item => ({ task_id: item.id, title: item.task_title, customer_name: 'Test Customer', helper_name: 'Test Helper', currency: 'CAD', total_amount: 100, platform_fee: 30, settlement_total_amount: 100, settlement_helper_net: 70, helper_net: 70, payout_recipient: 'helper@example.test', payout_account_version: 'a'.repeat(64), ...item }));
+        ].map(item => ({ task_id: item.id, title: item.task_title, customer_name: 'Test Customer', helper_name: 'Test Helper', currency: 'CAD', total_amount: 100, platform_fee: 40, commission_percent: 40, settlement_total_amount: 100, settlement_helper_net: 60, helper_net: 60, payout_recipient: 'helper@example.test', payout_account_version: 'a'.repeat(64), ...item }));
         return route.fulfill({ json: { success: true, data } });
       }
       if (url.origin === base) return route.continue();
@@ -133,10 +134,11 @@ try {
       await expect(page.getByText('Managed by PayPal', { exact: true })).toBeVisible();
       await expect(page.getByRole('button', { name: 'Mark payment paid', exact: true })).toHaveCount(0);
       await expect(page.getByRole('button', { name: 'Record completed Helper payout', exact: true })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Approve and send 60%', exact: true })).toHaveCount(1);
       await expect(page.getByRole('button', { name: 'Approve and send 70%', exact: true })).toHaveCount(1);
       await expect(page.getByText(/Payment disputed: reconcile before payout/)).toBeVisible();
-      page.once('dialog', dialog => dialog.accept());
-      await page.getByRole('button', {name: 'Approve and send 70%', exact: true}).click();
+      page.once('dialog', dialog => { assert.match(dialog.message(), /retains 40 CAD/); return dialog.accept(); });
+      await page.getByRole('button', {name: 'Approve and send 60%', exact: true}).click();
       await expect(page.getByRole('button', {name: 'Check existing PayPal payout', exact: true})).toBeVisible();
       assert.deepEqual(payoutPosts, [{account_version: 'a'.repeat(64)}]);
       await expect(page.getByText('✓ Settled', {exact: true})).toHaveCount(0);

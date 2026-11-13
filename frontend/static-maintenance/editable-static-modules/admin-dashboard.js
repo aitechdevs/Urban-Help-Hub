@@ -518,7 +518,7 @@
           }
         }
         async function approvePayPal(payment, reconcile = false) {
-          if (!reconcile && !window.confirm(`Approve and send ${payment.helper_net} ${payment.currency} to ${payment.payout_recipient}? UrbanHelpHub retains the recorded 30% commission. This sends real funds when Live payouts are enabled.`)) return;
+          if (!reconcile && !window.confirm(`Approve and send ${payment.helper_net} ${payment.currency} to ${payment.payout_recipient}? UrbanHelpHub retains ${payment.platform_fee} ${payment.currency} as the recorded commission. This sends real funds when Live payouts are enabled.`)) return;
           if (D) return;
           V(`payouts-${payment.payout_id}`); I("");
           try {
@@ -1712,10 +1712,10 @@
                                                   }),
                                                 e.provider === "paypal" && (0, t.jsxs)("div", {className: "space-y-2", children: [
                                                   (0, t.jsx)("p", {className: "text-sm", children: `Recipient: ${e.payout_recipient || "Helper payout account not set"}`}),
-                                                  (0, t.jsx)("p", {className: "text-sm", children: `Platform: 30% · Helper: 70% · ${e.payout_approved_at ? "Admin approved" : "Awaiting admin approval"}`}),
+                                                  (0, t.jsx)("p", {className: "text-sm", children: `Platform: ${e.platform_fee} ${e.currency} · Helper: ${e.helper_net} ${e.currency} · ${e.commission_percent == null ? "Historical recorded split" : `${Number(e.commission_percent)}% / ${100-Number(e.commission_percent)}%`} · ${e.payout_approved_at ? "Admin approved" : "Awaiting admin approval"}`}),
                                                   e.payout_status === "pending" && e.status === "paid" && e.paypal_dispute_status !== "OPEN" && Number(e.refunded_amount || 0) === 0 && (0, t.jsx)("button", {
                                                     type: "button", disabled: Boolean(D) || !e.payout_account_version || !e.payout_recipient,
-                                                    onClick: () => approvePayPal(e), className: "rounded-xl bg-[#082f5b] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50", children: "Approve and send 70%",
+                                                    onClick: () => approvePayPal(e), className: "rounded-xl bg-[#082f5b] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50", children: e.commission_percent == null ? "Approve recorded payout" : `Approve and send ${100-Number(e.commission_percent)}%`,
                                                   }),
                                                   e.payout_approved_at && e.payout_status !== "paid" && (0, t.jsx)("button", {
                                                     type: "button", disabled: Boolean(D), onClick: () => approvePayPal(e, true),

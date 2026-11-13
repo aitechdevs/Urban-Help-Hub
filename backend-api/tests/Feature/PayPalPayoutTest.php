@@ -36,6 +36,8 @@ class PayPalPayoutTest extends TestCase
 
     private bool $emptyBatch = false;
 
+    private string $helperAmount = '70.00';
+
     private bool $lostResponse = false;
 
     private bool $mismatch = false;
@@ -92,7 +94,7 @@ class PayPalPayoutTest extends TestCase
             if (str_contains($url, '/v1/payments/payouts/BATCH12345')) {
                 return Http::response(['batch_header' => ['payout_batch_id' => 'BATCH12345', 'sender_batch_header' => ['sender_batch_id' => $this->sender]], 'items' => $this->emptyBatch ? [] : [[
                     'payout_item_id' => 'ITEM12345', 'transaction_status' => $this->itemState,
-                    'payout_item' => ['sender_item_id' => 'payout-'.$this->payoutId, 'recipient_type' => 'EMAIL', 'receiver' => $this->mismatch ? 'attacker@example.test' : 'helper@example.test', 'amount' => ['value' => '70.00', 'currency' => 'CAD']],
+                    'payout_item' => ['sender_item_id' => 'payout-'.$this->payoutId, 'recipient_type' => 'EMAIL', 'receiver' => $this->mismatch ? 'attacker@example.test' : 'helper@example.test', 'amount' => ['value' => $this->helperAmount, 'currency' => 'CAD']],
                 ]]]);
             }
             throw new \RuntimeException('Unexpected synthetic request');
@@ -303,7 +305,7 @@ class PayPalPayoutTest extends TestCase
         $this->assertCount(1, $this->submitted);
     }
 
-    public function test_customer_completion_records_thirty_seventy_and_capture_notifies_admin_without_payout(): void
+    public function test_customer_completion_records_forty_sixty_and_capture_notifies_admin_without_payout(): void
     {
         DB::table('payouts')->delete();
         DB::table('payments')->delete();
@@ -315,8 +317,8 @@ class PayPalPayoutTest extends TestCase
         $this->putJson('/api/customer/tasks/'.$this->taskId.'/confirm-completion')->assertOk();
         $this->paymentId = DB::table('payments')->value('id');
         $this->payoutId = DB::table('payouts')->value('id');
-        $this->assertDatabaseHas('payments', ['subtotal_amount' => 100, 'platform_fee' => 30, 'commission_percent' => 30, 'status' => 'pending']);
-        $this->assertDatabaseHas('payouts', ['net_amount' => 70, 'status' => 'pending', 'approved_at' => null]);
+        $this->assertDatabaseHas('payments', ['subtotal_amount' => 100, 'platform_fee' => 40, 'commission_percent' => 40, 'status' => 'pending']);
+        $this->assertDatabaseHas('payouts', ['net_amount' => 60, 'status' => 'pending', 'approved_at' => null]);
         $this->assertSame(0, DB::table('notifications')->where('type', 'payout_approval_required')->count());
         DB::table('payments')->where('id', $this->paymentId)->update(['provider' => 'paypal', 'paypal_order_id' => 'ORDER12345', 'paypal_mode' => 'sandbox']);
         $event = ['id' => 'COLLECTEVENT123', 'event_type' => 'PAYMENT.CAPTURE.COMPLETED', 'resource' => ['id' => 'CAPTURE12345', 'supplementary_data' => ['related_ids' => ['order_id' => 'ORDER12345']]]];
@@ -325,7 +327,7 @@ class PayPalPayoutTest extends TestCase
         $this->postJson('/api/paypal/webhook', $event, $headers)->assertOk();
         $this->assertSame(1, DB::table('notifications')->where('user_id', $this->admin->id)->where('type', 'payout_approval_required')->count());
         $this->assertDatabaseHas('payments', ['id' => $this->paymentId, 'status' => 'paid']);
-        $this->assertDatabaseHas('payouts', ['net_amount' => 70, 'status' => 'pending', 'approved_at' => null]);
+        $this->assertDatabaseHas('payouts', ['net_amount' => 60, 'status' => 'pending', 'approved_at' => null]);
         $this->assertSame([], $this->submitted);
         $this->assertDatabaseCount('payments', 1);
     }
@@ -336,5 +338,37 @@ class PayPalPayoutTest extends TestCase
         $this->approve()->assertOk()->assertJsonPath('data.status', 'processing');
         $this->assertDatabaseHas('payouts', ['status' => 'processing', 'paid_at' => null]);
         $this->assertSame(0, DB::table('notifications')->where('type', 'payout_paid')->count());
+    }
+
+    public function test_new_forty_sixty_payout_and_historical_snapshot_remain_independent(): void
+    {
+        DB::table('payments')->where('id', $this->paymentId)->update(['commission_percent' => 40, 'platform_fee' => 40]);
+        DB::table('payouts')->where('id', $this->payoutId)->update(['platform_deduction' => 40, 'net_amount' => 60]);
+        $this->helperAmount = '60.00';
+        $this->approve()->assertOk();
+        $this->assertSame('60.00', $this->submitted[0]['items'][0]['amount']['value']);
+        $this->assertDatabaseHas('payments', ['commission_percent' => 40, 'platform_fee' => 40]);
+        $this->itemState = 'SUCCESS';
+        $this->reconcile()->assertOk()->assertJsonPath('data.status', 'paid');
+    }
+
+    public function test_legacy_null_snapshot_is_not_repriced_and_inconsistent_new_snapshot_is_blocked(): void
+    {
+        DB::table('payments')->where('id', $this->paymentId)->update(['commission_percent' => 40]);
+        $this->approve()->assertConflict();
+        $this->assertSame([], $this->submitted);
+        DB::table('payments')->where('id', $this->paymentId)->update(['commission_percent' => null]);
+        $this->approve()->assertOk();
+        $this->assertSame('70.00', $this->submitted[0]['items'][0]['amount']['value']);
+        $this->assertDatabaseHas('payments', ['commission_percent' => null, 'platform_fee' => 30]);
+    }
+
+    public function test_unknown_or_fractional_commission_snapshot_requires_review(): void
+    {
+        foreach ([35, 40.5] as $percent) {
+            DB::table('payments')->where('id', $this->paymentId)->update(['commission_percent' => $percent]);
+            $this->approve()->assertConflict();
+        }
+        $this->assertSame([], $this->submitted);
     }
 }

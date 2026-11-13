@@ -1,3 +1,5 @@
+> Current 40/60 update and Connected Path Live blocker: read [PAYPAL-40-60-RELEASE.md](PAYPAL-40-60-RELEASE.md) first. This document describes the existing direct Checkout/Payouts adapter.
+
 # Customer payments and admin-approved helper payouts
 
 Complete source branch: `feature/paypal-admin-approved-payouts`. This extends the PayPal checkout source at `827589c`; it includes checkout plus automatic transfers after admin approval. Nothing has been deployed, no real transfers were submitted and no Live setting was enabled.
@@ -5,16 +7,16 @@ Complete source branch: `feature/paypal-admin-approved-payouts`. This extends th
 ## Business flow
 
 1. The helper marks work complete. The customer confirms completion.
-2. The existing completion flow records the service subtotal, a **30% platform commission** and a pending **70% helper payout**. It creates no duplicate payment. The customer approves PayPal Checkout; a verified backend capture/webhook must confirm collection.
+2. The existing completion flow records the service subtotal, a **40% platform commission** and a pending **60% helper payout**. It creates no duplicate payment. The customer approves PayPal Checkout; a verified backend capture/webhook must confirm collection.
 3. Once both job completion and collection are confirmed, an active administrator receives one **Helper payout awaiting approval** dashboard notification linked to `/admin#payments`. Job confirmation without payment is not payout authorization.
 4. The helper saves a receiving PayPal email in the helper dashboard, confirming their UrbanHelpHub password. Storage is encrypted with Laravel's APP_KEY, separate from serialized user data. This verifies control of the UrbanHelpHub account, not ownership or eligibility of the receiving PayPal account; the helper and admin must check the address.
-5. The admin reviews the recipient, recorded commission and helper net, then clicks **Approve and send 70%** and confirms. A changed account version requires a reload/review. The original approved recipient cannot be redirected by later account edits.
+5. The admin reviews the recipient, recorded commission and helper net, then clicks **Approve and send 60%** and confirms. A changed account version requires a reload/review. The original approved recipient cannot be redirected by later account edits.
 6. The backend commits approver, approval time and an immutable sender batch reference before submitting a one-recipient PayPal Payouts request. No customer/helper endpoint can approve a payout, and the legacy manual status endpoint cannot bypass PayPal confirmation.
 7. Processing and unclaimed items remain unpaid. Only the individual item's verified `SUCCESS` status marks it paid and notifies the helper/admin. A batch-level success alone is insufficient.
 
-Example: a CAD 100.00 service subtotal records CAD 30.00 platform commission and CAD 70.00 helper earnings. Commission is rounded to cents; the helper receives the remainder so the two always total the subtotal. Taxes, if introduced, are outside this split. PayPal checkout/payout fees are borne by the platform, not silently deducted from the helper's 70%. The platform's recorded gross commission is not its profit after fees. Available merchant payout balance is required.
+Example: a CAD 100.00 service subtotal records CAD 40.00 platform commission and CAD 60.00 helper earnings. Commission is rounded to cents; the helper receives the remainder so the two always total the subtotal. Taxes, if introduced, are outside this split. PayPal checkout/payout fees are borne by the platform, not silently deducted from the helper's gross share. The platform's recorded gross commission is not its profit after fees. Available merchant payout balance is required.
 
-New completion records snapshot `commission_percent=30`; the old Stripe fee environment variable remains but does not override this new split. Existing transaction amounts are not rewritten. Older records whose stored fees/net do not match 30/70 require accounting review and are blocked from this automatic payout path.
+New completion records snapshot `commission_percent=40`; the old Stripe fee environment variable remains but does not override this new split. Existing amounts and 30% snapshots remain valid under their recorded split; legacy null snapshots use 30% validation. Inconsistent/unknown snapshots require accounting review.
 
 ## PayPal setup — Sandbox first
 
@@ -41,10 +43,10 @@ All routes are under the existing Sanctum authentication; admin routes also requ
 |---|---|---|
 | GET | `/api/helper/paypal/payout-account` | Current active helper's payout email only; no-store |
 | PUT | `/api/helper/paypal/payout-account` | Save own email with current password; rate limited |
-| POST | `/api/admin/payouts/{payoutId}/approve-paypal` | Approve and submit the stored 70%; requires the reviewed `account_version` from admin payment results |
+| POST | `/api/admin/payouts/{payoutId}/approve-paypal` | Approve and submit the recorded helper share; requires the reviewed `account_version` from admin payment results |
 | POST | `/api/admin/payouts/{payoutId}/reconcile-paypal` | Check/reconcile the existing approved transfer; never creates a new approval |
 
-The existing authenticated `GET /api/admin/payments` includes recipient, account version, approval audit fields, provider state and 30/70 amounts. It does not expose encrypted storage values. Browser-supplied amounts/recipients are not used to send funds.
+The existing authenticated `GET /api/admin/payments` includes recipient, account version, approval audit fields, provider state and recorded commission/helper amounts. It does not expose encrypted storage values. Browser-supplied amounts/recipients are not used to send funds.
 
 The shared, signature-verified webhook remains:
 
@@ -99,7 +101,7 @@ Publish reviewed prepared `frontend/public_html/` changes only after backend/mig
 
 - [ ] Provider Payouts approval, Sandbox credentials, matching merchant/webhook IDs and funded balance.
 - [ ] New helper email/password form saves only the signed-in helper's recipient; admin sees/reviews the intended address.
-- [ ] Customer completion records 30/70; no transfer occurs on completion or capture alone.
+- [ ] Customer completion records 40/60; no transfer occurs on completion or capture alone.
 - [ ] Verified collection sends one admin eligibility notification and creates no duplicate payment.
 - [ ] Admin approves a genuine Sandbox transfer; inspect the real batch/item response and receiving Sandbox account.
 - [ ] PENDING/UNCLAIMED is not paid; individual SUCCESS marks paid once and notifies helper/admin.
@@ -110,6 +112,6 @@ Publish reviewed prepared `frontend/public_html/` changes only after backend/mig
 
 ## Live activation — separate and not performed
 
-After all Sandbox tests and provider business approval, use distinct Live client credentials, merchant/webhook IDs and the reviewed Live endpoint. Live sending requires **all three**: PAYPAL_MODE=live, PAYPAL_PAYOUTS_ENABLED=true and PAYPAL_LIVE_PAYOUTS_ENABLED=true. Refresh Laravel config cache. Sandbox payments/payouts cannot be reused in Live; mode checks reject them. Perform only an explicitly authorized low-value Live test, inspect settlement/fees/refund behavior and monitor before wider availability.
+After all Sandbox tests and provider business approval, use distinct Live client credentials, merchant/webhook IDs and the reviewed Live endpoint. For a separately approved direct Checkout/Payouts model only, Live sending additionally requires PAYPAL_LIVE_DIRECT_MODEL_APPROVED=true. Connected Path-only approval is insufficient. The other required gates are: PAYPAL_MODE=live, PAYPAL_PAYOUTS_ENABLED=true and PAYPAL_LIVE_PAYOUTS_ENABLED=true. Refresh Laravel config cache. Sandbox payments/payouts cannot be reused in Live; mode checks reject them. Perform only an explicitly authorized low-value Live test, inspect settlement/fees/refund behavior and monitor before wider availability.
 
 Automated/mock checks do not establish real PayPal account eligibility or successful transfer. Source is prepared and tested locally; real Sandbox and hosting verification are still required. See `PAYPAL-PAYOUTS-VALIDATION.md` and `PAYPAL-PAYOUTS-CHANGED-FILES.md`.

@@ -1,5 +1,9 @@
+> **Current split: 40% UrbanHelpHub / 60% helper.** Source: `feature/paypal-40-60-split`.
+> [Release and deployment prerequisites](docs/PAYPAL-40-60-RELEASE.md).
+> Existing transaction amounts are preserved. Connected Path is not implemented; Live remains blocked pending the approved architecture.
+
 > **Admin-approved automatic PayPal payouts:** use branch `feature/paypal-admin-approved-payouts`.
-> Customer completion + verified collection → 30% platform / 70% helper → admin approval → PayPal transfer.
+> Customer completion + verified collection → 40% platform / 60% helper for new payment records → admin approval → PayPal transfer.
 > [Setup and source guide](docs/PAYPAL-PAYOUTS.md) · [Validation](docs/PAYPAL-PAYOUTS-VALIDATION.md).
 > Payout switches are off by default. No live deployment or real transfer has been performed.
 

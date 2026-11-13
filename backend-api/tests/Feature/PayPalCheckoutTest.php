@@ -329,4 +329,14 @@ class PayPalCheckoutTest extends TestCase
         $this->postJson($this->path('capture'), ['order_id' => 'ORDER12345'])->assertOk()->assertJsonPath('data.status', 'paid');
         $this->assertSame(1, $this->captureCalls);
     }
+
+    public function test_live_direct_collection_requires_explicit_model_approval_and_connected_path_cannot_use_this_adapter(): void
+    {
+        config(['services.paypal.mode' => 'live', 'services.paypal.live_direct_model_approved' => false]);
+        $this->postJson($this->path('create-order'))->assertConflict();
+        $this->getJson($this->path('config'))->assertConflict();
+        config(['services.paypal.mode' => 'sandbox', 'services.paypal.live_direct_model_approved' => true, 'services.paypal.integration_model' => 'connected_path']);
+        $this->postJson($this->path('create-order'))->assertConflict();
+        Http::assertNothingSent();
+    }
 }

@@ -27,13 +27,16 @@ class PayPalPayoutService
         abort_unless(DB::table('tasks')->where('id', $payment->task_id)->where('customer_id', $payment->customer_id)->where('status', 'completed')->exists(), 409, 'Customer completion confirmation is required.');
         abort_unless((int) $payout->helper_id === (int) $payment->helper_id && (int) $payout->task_id === (int) $payment->task_id, 409, 'Payout does not match the job.');
         $gross = $this->paypal->cents($payment->subtotal_amount);
-        $fee = intdiv($gross * 30 + 50, 100);
+        // A new rate must never rewrite amounts already agreed/approved under an older snapshot.
+        $percent = (float) ($payment->commission_percent ?? 30);
+        abort_unless(in_array($percent, [30.0, 40.0], true), 409, 'Stored commission requires review.');
+        $fee = intdiv($gross * (int) $percent + 50, 100);
         abort_unless($gross > 0 && $this->paypal->cents($payment->platform_fee) === $fee
             && $this->paypal->cents($payout->gross_amount) === $gross
             && $this->paypal->cents($payout->platform_deduction) === $fee
             && $this->paypal->cents($payout->other_deductions) === 0
             && $this->paypal->cents($payout->net_amount) === $gross - $fee
-            && $payout->currency === $payment->currency, 409, 'The stored 30/70 amounts require review.');
+            && $payout->currency === $payment->currency, 409, 'The stored commission and helper earnings require review.');
         $this->paypal->currency($payment);
     }
 

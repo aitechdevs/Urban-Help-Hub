@@ -1,3 +1,5 @@
+> Historical validation of cab9f98. Current results and Live restrictions: [PAYPAL-40-60-RELEASE.md](PAYPAL-40-60-RELEASE.md).
+
 # Admin-approved payout validation
 
 No real PayPal calls, live funds, cPanel changes, production database operations or deployment were performed. All provider behavior in automated tests is synthetic. New sending switches remain false by default.

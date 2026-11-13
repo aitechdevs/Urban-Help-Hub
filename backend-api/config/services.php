@@ -35,10 +35,12 @@ return [
         ],
     ],
 
-    'marketplace' => ['commission_percent' => 30],
+    'marketplace' => ['commission_percent' => 40],
 
     'paypal' => [
         'mode' => env('PAYPAL_MODE', 'sandbox'),
+        'integration_model' => env('PAYPAL_INTEGRATION_MODEL', 'checkout_payouts'),
+        'live_direct_model_approved' => (bool) env('PAYPAL_LIVE_DIRECT_MODEL_APPROVED', false),
         'payouts_enabled' => (bool) env('PAYPAL_PAYOUTS_ENABLED', false),
         'live_payouts_enabled' => (bool) env('PAYPAL_LIVE_PAYOUTS_ENABLED', false),
         'client_id' => env('PAYPAL_CLIENT_ID'),
