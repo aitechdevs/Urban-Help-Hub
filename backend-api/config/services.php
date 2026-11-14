@@ -35,6 +35,15 @@ return [
         ],
     ],
 
+    'paypal' => [
+        'mode' => env('PAYPAL_MODE', 'sandbox'),
+        'client_id' => env('PAYPAL_CLIENT_ID'),
+        'client_secret' => env('PAYPAL_CLIENT_SECRET'),
+        'merchant_id' => env('PAYPAL_MERCHANT_ID'),
+        'webhook_id' => env('PAYPAL_WEBHOOK_ID'),
+        'frontend_url' => rtrim(env('FRONTEND_URL', 'http://localhost:3000'), '/'),
+    ],
+
     'stripe' => [
         'secret' => env('STRIPE_SECRET_KEY'),
         'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),

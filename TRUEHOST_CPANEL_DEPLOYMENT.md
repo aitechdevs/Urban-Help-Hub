@@ -98,6 +98,10 @@ Check the MVP in this order:
 7. Confirm the admin finance dashboard remains in CAD.
 8. Upload and view a verification document.
 
+## PayPal payments
+
+Follow `URBANHELPHUB-LIVE-PAYMENTS-INSTALL.txt` for PayPal credentials, webhook registration, sandbox acceptance, and Stripe cutover. Customers pay 50% at matching and the balance after confirming completion. Helpers receive 60% only after admin release; the platform absorbs PayPal fees and tax from its 40% share.
+
 ## Currency note
 
 Customer and helper screens use the selected country's transaction currency. Admin finance totals use the CAD settlement snapshot stored with each payment. The included FX values are indicative MVP defaults; update the `FX_*_TO_CAD` variables or connect a payment/rate provider before processing real money.

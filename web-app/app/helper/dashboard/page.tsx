@@ -7,6 +7,7 @@ import RegionSelector from "@/components/RegionSelector";
 import { formatMoney, storedCurrency } from "@/lib/regions";
 import { useLanguage } from "@/components/LanguageProvider";
 import { API_URL } from "@/lib/api";
+import { PayPalAccount } from "@/components/PayPalPayment";
 
 type User = {
   id: number;
@@ -339,6 +340,8 @@ export default function HelperDashboardPage() {
   }
 
   async function respondToOpportunity(assignmentId: number, decision: "accept" | "decline") {
+    const fixedPrice = decision === "accept" ? window.prompt("Propose your fixed total for the entire task in its listed currency. You will receive 60%; the customer must accept this quote. PayPal fees and taxes are covered by the platform.") : null;
+    if (decision === "accept" && (fixedPrice === null || !Number.isFinite(Number(fixedPrice)) || Number(fixedPrice) < 0.02)) return;
     if (decision === "decline" && !window.confirm("Decline this opportunity?")) return;
     const token = getToken();
     if (!token) return;
@@ -348,7 +351,8 @@ export default function HelperDashboardPage() {
     try {
       const response = await fetch(`${API_URL}/helper/opportunities/${assignmentId}/${decision}`, {
         method: "PUT",
-        headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
+        headers: { Accept: "application/json", "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(decision === "accept" ? { agreed_fixed_price: fixedPrice } : {}),
       });
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.message || `Unable to ${decision} this opportunity.`);
@@ -823,6 +827,7 @@ export default function HelperDashboardPage() {
                 {marketplaceError}
               </div>
             )}
+            <PayPalAccount />
             <section className="rounded-3xl border border-slate-200 bg-white shadow-sm">
               <div className="flex items-center justify-between gap-4 border-b border-slate-100 px-6 py-5 sm:px-7">
                 <div>

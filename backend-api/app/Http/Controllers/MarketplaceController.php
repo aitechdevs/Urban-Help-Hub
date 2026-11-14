@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\TaskPayments;
 use App\Support\InAppNotification;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -53,6 +54,7 @@ class MarketplaceController extends Controller
                     'task_assignments.id as assignment_id',
                     'task_assignments.status',
                     'task_assignments.agreed_hourly_rate',
+                    'task_assignments.agreed_fixed_price',
                     'task_assignments.accepted_at',
                     'task_assignments.started_at',
                     'task_assignments.completed_at',
@@ -66,6 +68,9 @@ class MarketplaceController extends Controller
             $task->payment = DB::table('payments')
                 ->where('task_id', $task->id)
                 ->select([
+                    'id',
+                    'provider',
+                    'customer_confirmed_at',
                     'currency',
                     'subtotal_amount',
                     'platform_fee',
@@ -73,6 +78,9 @@ class MarketplaceController extends Controller
                     'status',
                 ])
                 ->first();
+            if ($task->payment && $task->payment->provider === 'paypal') {
+                $task->payment->installments = DB::table('payment_installments')->where('payment_id', $task->payment->id)->select(['stage', 'amount_minor', 'status'])->get();
+            }
 
             $task->my_review = DB::table('reviews')
                 ->where('task_id', $task->id)
@@ -199,11 +207,11 @@ class MarketplaceController extends Controller
         $outcome = DB::transaction(function () use ($user, $taskId, $validated) {
             $task = DB::table('tasks')->where('id', $taskId)->lockForUpdate()->first();
 
-            if (!$task || (int) $task->customer_id !== (int) $user->id) {
+            if (! $task || (int) $task->customer_id !== (int) $user->id) {
                 return ['error' => 'Task not found.', 'status' => 404];
             }
 
-            if (!in_array($task->status, ['open', 'awaiting_confirmation'], true)) {
+            if (! in_array($task->status, ['open', 'awaiting_confirmation'], true)) {
                 return ['error' => 'This task can no longer accept a Helper confirmation.', 'status' => 409];
             }
 
@@ -213,10 +221,11 @@ class MarketplaceController extends Controller
                 ->where('status', 'accepted')
                 ->first();
 
-            if (!$assignment) {
+            if (! $assignment) {
                 return ['error' => 'That Helper is not awaiting confirmation for this task.', 'status' => 422];
             }
 
+            app(TaskPayments::class)->create($task, $assignment);
             $now = now();
             DB::table('task_assignments')->where('id', $assignment->id)->update([
                 'status' => 'confirmed',
@@ -297,7 +306,7 @@ class MarketplaceController extends Controller
         $outcome = DB::transaction(function () use ($user, $taskId) {
             $task = DB::table('tasks')->where('id', $taskId)->lockForUpdate()->first();
 
-            if (!$task || (int) $task->customer_id !== (int) $user->id) {
+            if (! $task || (int) $task->customer_id !== (int) $user->id) {
                 return ['error' => 'Task not found.', 'status' => 404];
             }
 
@@ -311,25 +320,20 @@ class MarketplaceController extends Controller
                 ->lockForUpdate()
                 ->first();
 
-            if (!$assignment || !$assignment->started_at || !$assignment->completed_at) {
+            if (! $assignment || ! $assignment->started_at || ! $assignment->completed_at) {
                 return ['error' => 'The Helper completion record is incomplete.', 'status' => 422];
             }
 
             $now = now();
-            $minutes = max(
-                15,
-                Carbon::parse($assignment->started_at)->diffInMinutes(Carbon::parse($assignment->completed_at))
-            );
-            $hours = $minutes / 60;
-            $subtotal = round($hours * (float) ($assignment->agreed_hourly_rate ?? 0), 2);
-            $feePercent = max(0, min(100, (float) config('services.stripe.platform_fee_percent', 30)));
-            $platformFee = round($subtotal * ($feePercent / 100), 2);
-            $helperNet = round($subtotal - $platformFee, 2);
-            $transactionCurrency = $task->currency ?: 'CAD';
-            $settlementRate = (float) config("currency.rates_to_cad.{$transactionCurrency}", 1);
-            $settlementSubtotal = round($subtotal * $settlementRate, 2);
-            $settlementPlatformFee = round($platformFee * $settlementRate, 2);
-            $settlementHelperNet = round($helperNet * $settlementRate, 2);
+            $payment = DB::table('payments')->where('task_id', $taskId)->where('provider', 'paypal')->lockForUpdate()->first();
+            if (! $payment || ! DB::table('payment_installments')->where('payment_id', $payment->id)->where('stage', 'commitment')->where('status', 'completed')->exists()) {
+                return ['error' => 'The PayPal commitment payment must be completed first.', 'status' => 409];
+            }
+            if ($payment->status === 'blocked') {
+                return ['error' => 'This payment requires administrator review.', 'status' => 409];
+            }
+            $paymentId = $payment->id;
+            DB::table('payments')->where('id', $paymentId)->update(['customer_confirmed_at' => $now, 'updated_at' => $now]);
 
             DB::table('task_assignments')->where('id', $assignment->id)->update([
                 'status' => 'completed',
@@ -340,49 +344,6 @@ class MarketplaceController extends Controller
                 'completed_at' => $now,
                 'updated_at' => $now,
             ]);
-
-            $paymentId = DB::table('payments')->where('task_id', $taskId)->value('id');
-            if (!$paymentId) {
-                $paymentId = DB::table('payments')->insertGetId([
-                    'task_id' => $taskId,
-                    'customer_id' => $user->id,
-                    'helper_id' => $assignment->helper_id,
-                    'provider' => 'stripe',
-                    'currency' => $transactionCurrency,
-                    'settlement_currency' => 'CAD',
-                    'settlement_exchange_rate' => $settlementRate,
-                    'settlement_subtotal_amount' => $settlementSubtotal,
-                    'settlement_platform_fee' => $settlementPlatformFee,
-                    'settlement_total_amount' => $settlementSubtotal,
-                    'settlement_helper_net' => $settlementHelperNet,
-                    'subtotal_amount' => $subtotal,
-                    'platform_fee' => $platformFee,
-                    'tax_amount' => 0,
-                    'total_amount' => $subtotal,
-                    'refunded_amount' => 0,
-                    'status' => 'pending',
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ]);
-            }
-
-            if (!DB::table('payouts')->where('task_id', $taskId)->exists()) {
-                DB::table('payouts')->insert([
-                    'payment_id' => $paymentId,
-                    'task_id' => $taskId,
-                    'helper_id' => $assignment->helper_id,
-                    'provider' => 'stripe',
-                    'currency' => $task->currency ?: 'CAD',
-                    'gross_amount' => $subtotal,
-                    'platform_deduction' => $platformFee,
-                    'other_deductions' => 0,
-                    'net_amount' => $helperNet,
-                    'status' => 'pending',
-                    'scheduled_at' => $now,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ]);
-            }
 
             $this->recordStatusChange(
                 $taskId,
@@ -396,7 +357,7 @@ class MarketplaceController extends Controller
                 (int) $assignment->helper_id,
                 'completion_confirmed',
                 'Job completion approved',
-                'The Customer approved completion of “'.$task->title.'”. Your payout is being processed.',
+                'The Customer approved completion of “'.$task->title.'”. Your full earnings remain held until final payment and administrator release.',
                 '/helper/dashboard',
                 ['task_id' => $taskId, 'payment_id' => $paymentId]
             );
@@ -410,9 +371,8 @@ class MarketplaceController extends Controller
 
             return [
                 'payment_id' => $paymentId,
-                'subtotal' => $subtotal,
-                'platform_fee' => $platformFee,
-                'helper_net' => $helperNet,
+                'subtotal' => $payment->subtotal_amount,
+                'platform_fee' => $payment->platform_fee,
             ];
         });
 
@@ -422,7 +382,7 @@ class MarketplaceController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Completion confirmed. Payment is now pending processing.',
+            'message' => 'Completion confirmed. Please pay the remaining 50% through PayPal. Helper earnings remain held for administrator release.',
             'data' => $outcome,
         ]);
     }
@@ -437,7 +397,7 @@ class MarketplaceController extends Controller
         ]);
 
         $task = DB::table('tasks')->where('id', $taskId)->first();
-        if (!$task || $task->status !== 'completed') {
+        if (! $task || $task->status !== 'completed') {
             return response()->json(['success' => false, 'message' => 'Reviews are available after task completion.'], 409);
         }
 
@@ -446,7 +406,7 @@ class MarketplaceController extends Controller
             ->where('status', 'completed')
             ->first();
 
-        if (!$assignment) {
+        if (! $assignment) {
             return response()->json(['success' => false, 'message' => 'Completed Helper assignment not found.'], 404);
         }
 
@@ -505,14 +465,16 @@ class MarketplaceController extends Controller
             return $this->forbidden('This action is only available to Helper accounts.');
         }
 
-        $outcome = DB::transaction(function () use ($user, $assignmentId, $decision) {
+        $quote = $decision === 'accepted' ? $request->validate(['agreed_fixed_price' => ['required', 'numeric', 'min:0.02', 'max:99999999', 'decimal:0,2']])['agreed_fixed_price'] : null;
+
+        $outcome = DB::transaction(function () use ($user, $assignmentId, $decision, $quote) {
             $assignment = DB::table('task_assignments')
                 ->where('id', $assignmentId)
                 ->where('helper_id', $user->id)
                 ->lockForUpdate()
                 ->first();
 
-            if (!$assignment) {
+            if (! $assignment) {
                 return ['error' => 'Opportunity not found.', 'status' => 404];
             }
 
@@ -522,13 +484,14 @@ class MarketplaceController extends Controller
 
             $task = DB::table('tasks')->where('id', $assignment->task_id)->lockForUpdate()->first();
 
-            if (!$task || $task->status !== 'open') {
+            if (! $task || $task->status !== 'open') {
                 return ['error' => 'This task is no longer accepting responses.', 'status' => 409];
             }
 
             $now = now();
             DB::table('task_assignments')->where('id', $assignmentId)->update([
                 'status' => $decision,
+                'agreed_fixed_price' => $quote,
                 'accepted_at' => $decision === 'accepted' ? $now : null,
                 'updated_at' => $now,
             ]);
@@ -588,7 +551,7 @@ class MarketplaceController extends Controller
                 ->lockForUpdate()
                 ->first();
 
-            if (!$assignment) {
+            if (! $assignment) {
                 return ['error' => 'Job not found.', 'status' => 404];
             }
 
@@ -596,7 +559,11 @@ class MarketplaceController extends Controller
             $now = now();
 
             if ($action === 'start') {
-                if ($assignment->status !== 'confirmed' || !$task || $task->status !== 'scheduled') {
+                $payment = $task ? DB::table('payments')->where('task_id', $task->id)->where('provider', 'paypal')->first() : null;
+                if (! $payment || $payment->status === 'blocked' || ! DB::table('payment_installments')->where('payment_id', $payment->id)->where('stage', 'commitment')->where('status', 'completed')->exists()) {
+                    return ['error' => 'The Customer must pay the 50% commitment through PayPal before work starts.', 'status' => 409];
+                }
+                if ($assignment->status !== 'confirmed' || ! $task || $task->status !== 'scheduled') {
                     return ['error' => 'Only a confirmed, scheduled job can be started.', 'status' => 409];
                 }
                 if (Carbon::parse($task->scheduled_date)->isAfter(now()->startOfDay())) {
@@ -617,10 +584,11 @@ class MarketplaceController extends Controller
                     '/dashboard',
                     ['task_id' => $task->id]
                 );
+
                 return ['message' => 'Job started. The Customer can now see that work is in progress.'];
             }
 
-            if ($assignment->status !== 'in_progress' || !$task || $task->status !== 'in_progress') {
+            if ($assignment->status !== 'in_progress' || ! $task || $task->status !== 'in_progress') {
                 return ['error' => 'Only an in-progress job can be marked complete.', 'status' => 409];
             }
             DB::table('task_assignments')->where('id', $assignmentId)->update([
@@ -638,6 +606,7 @@ class MarketplaceController extends Controller
                 '/dashboard',
                 ['task_id' => $task->id]
             );
+
             return ['message' => 'Job marked complete. Waiting for Customer confirmation.'];
         });
 
@@ -668,6 +637,7 @@ class MarketplaceController extends Controller
                 'task_assignments.id as assignment_id',
                 'task_assignments.status as assignment_status',
                 'task_assignments.agreed_hourly_rate',
+                'task_assignments.agreed_fixed_price',
                 'task_assignments.started_at',
                 'task_assignments.completed_at',
                 'tasks.id as task_id',

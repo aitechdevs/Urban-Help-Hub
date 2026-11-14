@@ -81,10 +81,13 @@ class AdminController extends Controller
             ->count();
 
         $completedTasks = DB::table('tasks')->where('status', 'completed')->count();
-        $pendingPayments = DB::table('payments')->where('status', 'pending')->count();
-        $pendingPayouts = DB::table('payouts')->where('status', 'pending')->count();
-        $grossVolume = (float) DB::table('payments')->sum('settlement_total_amount');
-        $platformRevenue = (float) DB::table('payments')->sum('settlement_platform_fee');
+        $pendingPayments = DB::table('payments')->whereIn('status', ['pending', 'partially_paid', 'blocked'])->count();
+        $pendingPayouts = DB::table('payouts')->whereIn('status', ['pending', 'processing'])->count();
+        $grossVolume = (float) DB::table('payments')->where('status', 'paid')->sum('settlement_total_amount');
+        $platformRevenue = DB::table('payments')->leftJoin('payouts', 'payments.id', '=', 'payouts.payment_id')
+            ->where('payments.status', 'paid')->select(['payments.*', 'payouts.provider_fee as payout_fee'])
+            ->get()->sum(fn ($payment) => (float) $payment->settlement_platform_fee
+                - ((float) $payment->provider_fees + (float) ($payment->payout_fee ?? 0) + (float) $payment->tax_amount) * (float) $payment->settlement_exchange_rate);
         $pendingTasks = DB::table('tasks')->where('status', 'pending_approval')->count();
 
         return response()->json([
@@ -123,7 +126,6 @@ class AdminController extends Controller
                 'payments.currency',
                 'payments.subtotal_amount',
                 'payments.platform_fee',
-                'payments.tax_amount',
                 'payments.total_amount',
                 'payments.settlement_currency',
                 'payments.settlement_exchange_rate',
@@ -133,6 +135,11 @@ class AdminController extends Controller
                 'payments.settlement_helper_net',
                 'payments.status',
                 'payments.provider',
+                'payments.customer_confirmed_at',
+                'payments.provider_fees',
+                'payouts.provider_fee as payout_fee',
+                'payments.tax_amount',
+                'payouts.processed_at as payout_submitted_at',
                 'payments.paid_at',
                 'payments.created_at',
                 'tasks.title as task_title',
@@ -153,7 +160,7 @@ class AdminController extends Controller
     {
         $status = $request->query('status', 'pending_approval');
         $allowed = ['pending_approval', 'open', 'rejected', 'scheduled', 'in_progress', 'completed', 'all'];
-        if (!in_array($status, $allowed, true)) {
+        if (! in_array($status, $allowed, true)) {
             $status = 'pending_approval';
         }
 
@@ -192,7 +199,7 @@ class AdminController extends Controller
 
         $outcome = DB::transaction(function () use ($request, $taskId, $validated) {
             $task = DB::table('tasks')->where('id', $taskId)->lockForUpdate()->first();
-            if (!$task) {
+            if (! $task) {
                 return ['error' => 'Task not found.', 'status' => 404];
             }
             if ($task->status !== 'pending_approval') {
@@ -211,6 +218,7 @@ class AdminController extends Controller
                     '/dashboard',
                     ['task_id' => $taskId]
                 );
+
                 return ['matched_helpers' => 0, 'message' => 'Task rejected. The Customer can see the review reason.'];
             }
 
@@ -256,6 +264,7 @@ class AdminController extends Controller
                 '/dashboard',
                 ['task_id' => $taskId, 'matched_helpers' => $helpers->count()]
             );
+
             return [
                 'matched_helpers' => $helpers->count(),
                 'message' => $helpers->count() > 0
@@ -267,6 +276,7 @@ class AdminController extends Controller
         if (isset($outcome['error'])) {
             return response()->json(['success' => false, 'message' => $outcome['error']], $outcome['status']);
         }
+
         return response()->json(['success' => true, 'message' => $outcome['message'], 'data' => $outcome]);
     }
 
@@ -282,7 +292,9 @@ class AdminController extends Controller
     private function provinceAliases(?string $country, ?string $province): array
     {
         $normalized = strtolower(trim((string) $province));
-        if (strtolower(trim((string) $country)) !== 'canada') return [$normalized];
+        if (strtolower(trim((string) $country)) !== 'canada') {
+            return [$normalized];
+        }
         $canada = [
             'ab' => 'alberta', 'bc' => 'british columbia', 'mb' => 'manitoba',
             'nb' => 'new brunswick', 'nl' => 'newfoundland and labrador', 'ns' => 'nova scotia',
@@ -290,8 +302,11 @@ class AdminController extends Controller
             'pe' => 'prince edward island', 'qc' => 'quebec', 'sk' => 'saskatchewan', 'yt' => 'yukon',
         ];
         foreach ($canada as $code => $name) {
-            if ($normalized === $code || $normalized === $name) return [$code, $name];
+            if ($normalized === $code || $normalized === $name) {
+                return [$code, $name];
+            }
         }
+
         return [$normalized];
     }
 
@@ -302,14 +317,14 @@ class AdminController extends Controller
         ]);
 
         $payment = DB::table('payments')->where('id', $paymentId)->first();
-        if (!$payment) {
+        if (! $payment) {
             return response()->json(['success' => false, 'message' => 'Payment not found.'], 404);
         }
 
-        if ($payment->provider === 'stripe') {
+        if (in_array($payment->provider, ['stripe', 'paypal'], true)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Stripe payment status is managed by signed webhooks and cannot be changed manually.',
+                'message' => 'Provider payment status is verified with the payment provider and cannot be changed manually.',
             ], 409);
         }
 
@@ -343,14 +358,14 @@ class AdminController extends Controller
         ]);
 
         $payout = DB::table('payouts')->where('id', $payoutId)->first();
-        if (!$payout) {
+        if (! $payout) {
             return response()->json(['success' => false, 'message' => 'Payout not found.'], 404);
         }
 
-        if ($payout->provider === 'stripe') {
+        if (in_array($payout->provider, ['stripe', 'paypal'], true)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Stripe payout status is managed automatically and cannot be changed manually.',
+                'message' => 'Provider payouts must use the authorized release flow and verified provider status.',
             ], 409);
         }
 
@@ -359,7 +374,7 @@ class AdminController extends Controller
                 ->where('id', $payout->payment_id)
                 ->where('status', 'paid')
                 ->exists();
-            if (!$paymentPaid) {
+            if (! $paymentPaid) {
                 return response()->json([
                     'success' => false,
                     'message' => 'The Customer payment must be marked paid before releasing the Helper payout.',
@@ -496,7 +511,7 @@ class AdminController extends Controller
             ->where('role', 'helper')
             ->first();
 
-        if (!$helper) {
+        if (! $helper) {
             return response()->json([
                 'success' => false,
                 'message' => 'Helper not found.',
@@ -553,8 +568,7 @@ class AdminController extends Controller
                 'services' => $services,
                 'availability' => $availability,
                 'documents' => $documents,
-                'verification_readiness' =>
-                    $this->verificationReadiness($userId),
+                'verification_readiness' => $this->verificationReadiness($userId),
             ],
         ]);
     }
@@ -582,7 +596,7 @@ class AdminController extends Controller
             ->where('role', 'helper')
             ->first();
 
-        if (!$helper) {
+        if (! $helper) {
             return response()->json([
                 'success' => false,
                 'message' => 'Helper not found.',
@@ -593,7 +607,7 @@ class AdminController extends Controller
             ->where('user_id', $userId)
             ->first();
 
-        if (!$profile) {
+        if (! $profile) {
             return response()->json([
                 'success' => false,
                 'message' => 'This Helper has not completed a profile.',
@@ -603,7 +617,7 @@ class AdminController extends Controller
         if ($validated['verification_status'] === 'verified') {
             $readiness = $this->verificationReadiness($userId);
 
-            if (!$readiness['ready']) {
+            if (! $readiness['ready']) {
                 return response()->json([
                     'success' => false,
                     'message' => 'This Helper cannot be verified until all required documents are uploaded and approved.',
@@ -615,8 +629,7 @@ class AdminController extends Controller
         DB::table('profiles')
             ->where('user_id', $userId)
             ->update([
-                'verification_status' =>
-                    $validated['verification_status'],
+                'verification_status' => $validated['verification_status'],
                 'updated_at' => now(),
             ]);
 
@@ -682,7 +695,7 @@ class AdminController extends Controller
             ->where('role', 'helper')
             ->exists();
 
-        if (!$helperExists) {
+        if (! $helperExists) {
             return response()->json([
                 'success' => false,
                 'message' => 'Helper not found.',
@@ -694,7 +707,7 @@ class AdminController extends Controller
             ->where('user_id', $userId)
             ->first();
 
-        if (!$document) {
+        if (! $document) {
             return response()->json([
                 'success' => false,
                 'message' => 'Helper document not found.',
@@ -705,16 +718,12 @@ class AdminController extends Controller
             ->where('id', $documentId)
             ->where('user_id', $userId)
             ->update([
-                'verification_status' =>
-                    $validated['verification_status'],
-                'verification_notes' =>
-                    $validated['verification_notes'] ?? null,
-                'verified_by' =>
-                    $validated['verification_status'] === 'verified'
+                'verification_status' => $validated['verification_status'],
+                'verification_notes' => $validated['verification_notes'] ?? null,
+                'verified_by' => $validated['verification_status'] === 'verified'
                         ? $request->user()->id
                         : null,
-                'verified_at' =>
-                    $validated['verification_status'] === 'verified'
+                'verified_at' => $validated['verification_status'] === 'verified'
                         ? now()
                         : null,
                 'updated_at' => now(),
@@ -722,7 +731,7 @@ class AdminController extends Controller
 
         $readiness = $this->verificationReadiness($userId);
 
-        if (!$readiness['ready']) {
+        if (! $readiness['ready']) {
             DB::table('profiles')
                 ->where('user_id', $userId)
                 ->where('verification_status', 'verified')
@@ -743,8 +752,7 @@ class AdminController extends Controller
             'success' => true,
             'message' => 'Document verification status updated.',
             'data' => [
-                'verification_readiness' =>
-                    $readiness,
+                'verification_readiness' => $readiness,
             ],
         ]);
     }
@@ -763,7 +771,7 @@ class AdminController extends Controller
             ->where('is_active', true)
             ->first();
 
-        if (!$document) {
+        if (! $document) {
             return response()->json([
                 'success' => false,
                 'message' => 'Helper document not found.',
@@ -774,7 +782,7 @@ class AdminController extends Controller
             ? 'local'
             : $document->file_disk;
 
-        if (!Storage::disk($disk)->exists($document->file_path)) {
+        if (! Storage::disk($disk)->exists($document->file_path)) {
             return response()->json([
                 'success' => false,
                 'message' => 'The stored document file is unavailable.',
@@ -811,7 +819,7 @@ class AdminController extends Controller
             ->where('role', 'helper')
             ->first();
 
-        if (!$helper) {
+        if (! $helper) {
             return response()->json([
                 'success' => false,
                 'message' => 'Helper not found.',
@@ -823,7 +831,7 @@ class AdminController extends Controller
             ->where('user_id', $userId)
             ->first();
 
-        if (!$service) {
+        if (! $service) {
             return response()->json([
                 'success' => false,
                 'message' => 'Helper service not found.',
@@ -849,8 +857,7 @@ class AdminController extends Controller
             ->where('id', $serviceId)
             ->where('user_id', $userId)
             ->update([
-                'approval_status' =>
-                    $validated['approval_status'],
+                'approval_status' => $validated['approval_status'],
                 'is_active' => $isActive,
                 'updated_at' => now(),
             ]);
@@ -859,8 +866,7 @@ class AdminController extends Controller
             'success' => true,
             'message' => 'Service approval status updated.',
             'data' => [
-                'approval_status' =>
-                    $validated['approval_status'],
+                'approval_status' => $validated['approval_status'],
                 'is_active' => $isActive,
             ],
         ]);
@@ -888,7 +894,7 @@ class AdminController extends Controller
             ->where('role', 'helper')
             ->first();
 
-        if (!$helper) {
+        if (! $helper) {
             return response()->json([
                 'success' => false,
                 'message' => 'Helper not found.',
@@ -994,10 +1000,9 @@ class AdminController extends Controller
 
         if (
             $requirements->contains(
-                fn ($requirement) =>
-                    (bool) $requirement->requires_verification
+                fn ($requirement) => (bool) $requirement->requires_verification
             ) &&
-            !$hasType([
+            ! $hasType([
                 'identity',
                 'identity_document',
                 'government_id',
@@ -1012,20 +1017,18 @@ class AdminController extends Controller
 
         if (
             $requirements->contains(
-                fn ($requirement) =>
-                    (bool) $requirement->requires_background_check
+                fn ($requirement) => (bool) $requirement->requires_background_check
             ) &&
-            !$hasType(['background_check', 'police_check', 'criminal_record_check'])
+            ! $hasType(['background_check', 'police_check', 'criminal_record_check'])
         ) {
             $missing[] = 'Approved background check';
         }
 
         if (
             $requirements->contains(
-                fn ($requirement) =>
-                    (bool) $requirement->requires_driving_documents
+                fn ($requirement) => (bool) $requirement->requires_driving_documents
             ) &&
-            !$hasType([
+            ! $hasType([
                 'drivers_licence',
                 'drivers_license',
                 'driver_abstract',
@@ -1036,20 +1039,19 @@ class AdminController extends Controller
         }
 
         foreach ($requirements as $requirement) {
-            if (!$requirement->requires_specialist_documents) {
+            if (! $requirement->requires_specialist_documents) {
                 continue;
             }
 
             $hasSpecialistDocument = $documents->contains(
-                fn ($document) =>
-                    (int) $document->service_category_id ===
+                fn ($document) => (int) $document->service_category_id ===
                     (int) $requirement->id
             );
 
-            if (!$hasSpecialistDocument) {
+            if (! $hasSpecialistDocument) {
                 $missing[] =
                     'Approved specialist document for '
-                    . $requirement->name;
+                    .$requirement->name;
             }
         }
 

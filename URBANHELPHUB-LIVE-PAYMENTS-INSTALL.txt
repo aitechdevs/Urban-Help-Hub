@@ -1,69 +1,87 @@
-URBANHELPHUB LIVE STRIPE PAYMENTS — INSTALLATION
+URBANHELPHUB PAYPAL PAYMENTS — INSTALLATION
 
-1. BACK UP
-   Back up the Laravel backend files and database before replacing files.
-
-2. UPLOAD
-   Extract UrbanHelpHub-live-payments-v8.zip into the Laravel backend root
-   (the folder containing artisan). Preserve the paths inside the ZIP.
-
-3. ADD LIVE ENVIRONMENT VALUES
-   In the backend .env file add:
-
-   FRONTEND_URL=https://urbanhelphub.com
-   STRIPE_SECRET_KEY=your Stripe live secret key
-   STRIPE_WEBHOOK_SECRET=the signing secret created in step 5
-   STRIPE_API_VERSION=2024-06-20
-   STRIPE_PLATFORM_FEE_PERCENT=30
-
-   Do not place Stripe keys in public_html or in the Next.js frontend.
-   Do not send live keys, passwords, OTPs, or recovery codes through chat.
-
-4. RUN THE DATABASE MIGRATION
-   In cPanel Terminal, from the Laravel backend root:
-
+1. Deploy backend-api and web-app together. Back up the database first.
+   From backend-api: composer install --no-dev --optimize-autoloader
    php artisan migrate --force
    php artisan optimize:clear
-   php artisan config:cache
-   php artisan route:cache
+   From web-app: npm ci && npm run build
+   Restart the application processes after configuration changes.
 
-5. CREATE THE STRIPE WEBHOOK
-   In Stripe Dashboard > Developers > Webhooks, add:
+2. Configure a PayPal REST application with Orders v2 and Payouts access.
+   Start with sandbox accounts. The platform merchant must be approved for
+   Payouts and be able to receive the supported transaction currencies.
+   Securely set backend runtime values, never in frontend code or chat:
+   PAYPAL_MODE=sandbox (change to live only after sandbox acceptance)
+   PAYPAL_CLIENT_ID
+   PAYPAL_CLIENT_SECRET
+   PAYPAL_MERCHANT_ID (platform's PayPal merchant account ID)
+   PAYPAL_WEBHOOK_ID (the endpoint ID for the selected REST application)
+   FRONTEND_URL=https://your-frontend-domain
+   Allow HTTPS to api-m.sandbox.paypal.com and api-m.paypal.com.
+   These credentials use OAuth Basic authentication and must be available
+   to the backend process; encoded proxy placeholders are not raw secrets.
 
-   https://urbanhelphub.com/api/stripe/webhook
+3. Register https://your-api-domain/api/paypal/webhook in PayPal and save
+   its webhook ID. Subscribe to PAYMENT.CAPTURE.COMPLETED,
+   PAYMENT.CAPTURE.REFUNDED, PAYMENT.CAPTURE.REVERSED,
+   CUSTOMER.DISPUTE.CREATED, and all PAYMENT.PAYOUTS-ITEM events,
+   including SUCCEEDED, FAILED, DENIED, BLOCKED, HELD, UNCLAIMED,
+   RETURNED, REFUNDED and CANCELED where supported.
+   The backend verifies signatures through PayPal and retrieves payout
+   status from PayPal. A browser redirect alone is never proof of payment.
 
-   If the API uses a subdomain, use its actual public API base followed by
-   /api/stripe/webhook instead.
+4. Helpers save their PayPal email in their dashboard. A helper proposes
+   a fixed task quote when accepting an opportunity; the customer sees
+   and accepts that quote at matching. The price then stays fixed.
+   Price changes, cancellations and refunds need separate admin handling;
+   no automatic quote changes or refunds are introduced in this release.
 
-   Subscribe to:
-   - checkout.session.completed
-   - checkout.session.async_payment_succeeded
-   - checkout.session.async_payment_failed
-   - checkout.session.expired
-   - payment_intent.payment_failed
-   - account.updated
+5. The customer pays 50% via PayPal when confirming the helper. Work cannot
+   start before a completed capture. The helper reports completion, and
+   the customer confirms satisfactory completion and pays the remaining
+   balance. For odd cents, the commitment rounds to the nearest cent and
+   the balance is the exact remainder. Both funds remain with the platform.
+   This is a platform-managed payment hold, not a PayPal escrow product.
 
-   Copy the endpoint signing secret (whsec_...) into STRIPE_WEBHOOK_SECRET.
+6. The helper receives 60% of the agreed service price, rounded in minor
+   units; the platform receives the remainder (40%). Collection fees,
+   payout fees and applicable taxes are platform expenses and never reduce
+   helper earnings. Prices include applicable taxes. The admin must review
+   and enter the actual tax liability in task currency when releasing a
+   payout (enter 0 only when appropriate). Tax rates are not guessed and
+   the application does not file or remit taxes automatically.
+   Finance views show platform share less recorded provider fees and tax.
+   CAD reporting uses the configured FX snapshot; replace indicative FX
+   values before live use. Unsupported PayPal currencies are rejected,
+   rather than silently converted. A configured CAD reporting rate is
+   also required for each supported transaction currency.
 
-6. ENABLE STRIPE CONNECT
-   Complete the platform's Stripe Connect settings, branding, business
-   verification, bank account and live-mode activation in the Stripe Dashboard.
+7. Admin confirms with the customer that work is complete, reviews the tax,
+   and releases the entire helper payout. Both verified captures and the
+   customer's stored completion confirmation are required. PayPal Payouts
+   is asynchronous: submitting a batch does not mark earnings paid. Use
+   Refresh PayPal payout status or await a verified webhook for SUCCESS.
+   Failed, blocked, returned, denied or unclaimed transfers require review.
 
-7. SAFE LIVE TEST
-   - Use a real Helper account to finish Stripe onboarding.
-   - Complete a small real task through the full workflow.
-   - Confirm the Customer reaches Stripe Checkout.
-   - Confirm the payment is marked Paid only after a signed webhook.
-   - Confirm 30% remains as the platform fee and 70% reaches the Helper's
-     connected Stripe balance.
-   - Confirm both parties receive in-app notifications.
+8. Payout submission intent is saved before the provider call. An uncertain
+   network result remains processing and cannot be submitted again. Check
+   the PayPal dashboard and webhook delivery for reconciliation; never mark
+   it paid or reset its submission marker merely to retry. The sender item
+   and batch ID are urban-payout-{local payout ID}. A verified item webhook
+   can recover a missing batch ID after a lost provider response.
+   Disputes/refunds/reversals block further customer charges and release.
+   Do not retry failed transfers without reconciling the original transfer.
 
-IMPLEMENTED SAFEGUARDS
-   - Hosted Stripe Checkout (card details never touch UrbanHelpHub servers)
-   - Signed webhook verification with five-minute replay tolerance
-   - Webhook event idempotency
-   - Checkout idempotency and expired-session recovery
-   - Customer ownership checks
-   - Helper payout-readiness checks
-   - Automatic destination transfer and platform commission
+9. Sandbox acceptance: quote -> match -> 50% commitment -> start work ->
+   helper completion -> customer confirmation -> 50% balance -> admin
+   verification and tax review -> payout -> PayPal SUCCESS. Check provider
+   fee amounts, full 60% helper amount, invalid signatures, duplicate
+   captures, failed payouts and an interrupted payout response.
+   Local automated tests fake PayPal; they do not establish live readiness.
 
+10. Stripe endpoints are no longer routed. Historical Stripe records and
+    schema remain for audit; do not relabel them PayPal or charge them
+    again. Reconcile any in-flight Stripe sessions/transfers in Stripe
+    before cutover. Existing unmatched opportunities need a fixed quote;
+    existing matched Stripe jobs require a separate migration/reconciliation
+    decision, since they do not have PayPal installments.

@@ -6,42 +6,41 @@ use App\Http\Controllers\HelperOnboardingController;
 use App\Http\Controllers\MarketplaceController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\PayPalPaymentController;
 use App\Http\Controllers\ServiceCategoryController;
-use App\Http\Controllers\StripeConnectController;
-use App\Http\Controllers\StripePaymentController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/service-categories', [
     ServiceCategoryController::class,
-    'index'
+    'index',
 ]);
 
 Route::post('/register', [
     AuthController::class,
-    'register'
+    'register',
 ]);
 
 Route::post('/login', [
     AuthController::class,
-    'login'
+    'login',
 ]);
 
-Route::post('/stripe/webhook', [StripePaymentController::class, 'webhook']);
+Route::post('/paypal/webhook', [PayPalPaymentController::class, 'webhook']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', [
         AuthController::class,
-        'me'
+        'me',
     ]);
 
     Route::post('/logout', [
         AuthController::class,
-        'logout'
+        'logout',
     ]);
 
     Route::put('/user/preferences', [
         AuthController::class,
-        'updatePreferences'
+        'updatePreferences',
     ]);
 
     Route::get('/notifications', [NotificationController::class, 'index']);
@@ -50,48 +49,47 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/helper/onboarding', [
         HelperOnboardingController::class,
-        'show'
+        'show',
     ]);
 
     Route::put('/helper/onboarding/services', [
         HelperOnboardingController::class,
-        'saveServices'
+        'saveServices',
     ]);
 
     Route::put('/helper/onboarding/profile', [
         HelperOnboardingController::class,
-        'saveProfile'
+        'saveProfile',
     ]);
 
     Route::put('/helper/onboarding/availability', [
         HelperOnboardingController::class,
-        'saveAvailability'
+        'saveAvailability',
     ]);
 
     Route::post('/helper/documents', [
         HelperOnboardingController::class,
-        'uploadDocument'
+        'uploadDocument',
     ]);
 
     Route::get('/helper/documents/{documentId}', [
         HelperOnboardingController::class,
-        'viewDocument'
+        'viewDocument',
     ]);
 
     Route::delete('/helper/documents/{documentId}', [
         HelperOnboardingController::class,
-        'deleteDocument'
+        'deleteDocument',
     ]);
 
-    Route::get('/helper/stripe/status', [StripeConnectController::class, 'status']);
-    Route::post('/helper/stripe/onboarding-link', [StripeConnectController::class, 'onboardingLink']);
-    Route::post('/helper/stripe/dashboard-link', [StripeConnectController::class, 'dashboardLink']);
+    Route::match(['get', 'put'], '/helper/paypal', [PayPalPaymentController::class, 'payoutEmail']);
 
     Route::get('/customer/tasks', [MarketplaceController::class, 'customerTasks']);
     Route::post('/customer/tasks', [MarketplaceController::class, 'createTask']);
     Route::put('/customer/tasks/{taskId}/confirm', [MarketplaceController::class, 'confirmHelper']);
     Route::put('/customer/tasks/{taskId}/confirm-completion', [MarketplaceController::class, 'confirmCompletion']);
-    Route::post('/customer/payments/{paymentId}/checkout', [StripePaymentController::class, 'checkout']);
+    Route::post('/customer/payments/{paymentId}/checkout', [PayPalPaymentController::class, 'checkout']);
+    Route::post('/customer/payments/{paymentId}/capture', [PayPalPaymentController::class, 'capture']);
     Route::put('/tasks/{taskId}/review', [MarketplaceController::class, 'submitReview']);
 
     Route::get('/helper/opportunities', [MarketplaceController::class, 'helperOpportunities']);
@@ -118,51 +116,55 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('admin')
         ->prefix('admin')
         ->group(function () {
+            Route::post('/payouts/{payoutId}/release', [PayPalPaymentController::class, 'release']);
+            Route::post('/payouts/{payoutId}/submit', [PayPalPaymentController::class, 'sendPayout']);
+            Route::post('/payouts/{payoutId}/refresh', [PayPalPaymentController::class, 'payoutStatus']);
+
             Route::get('/dashboard', [
                 AdminController::class,
-                'dashboard'
+                'dashboard',
             ]);
 
             Route::get('/helpers', [
                 AdminController::class,
-                'helpers'
+                'helpers',
             ]);
 
             Route::get('/payments', [
                 AdminController::class,
-                'payments'
+                'payments',
             ]);
 
             Route::get('/tasks', [
                 AdminController::class,
-                'tasks'
+                'tasks',
             ]);
 
             Route::put('/tasks/{taskId}/approval', [
                 AdminController::class,
-                'updateTaskApproval'
+                'updateTaskApproval',
             ]);
 
             Route::put('/payments/{paymentId}/status', [
                 AdminController::class,
-                'updatePaymentStatus'
+                'updatePaymentStatus',
             ]);
 
             Route::put('/payouts/{payoutId}/status', [
                 AdminController::class,
-                'updatePayoutStatus'
+                'updatePayoutStatus',
             ]);
 
             Route::get('/helpers/{userId}', [
                 AdminController::class,
-                'helper'
+                'helper',
             ]);
 
             Route::put(
                 '/helpers/{userId}/verification',
                 [
                     AdminController::class,
-                    'updateVerification'
+                    'updateVerification',
                 ]
             );
 
@@ -170,7 +172,7 @@ Route::middleware('auth:sanctum')->group(function () {
                 '/helpers/{userId}/services/{serviceId}',
                 [
                     AdminController::class,
-                    'updateService'
+                    'updateService',
                 ]
             );
 
@@ -178,7 +180,7 @@ Route::middleware('auth:sanctum')->group(function () {
                 '/helpers/{userId}/documents/{documentId}',
                 [
                     AdminController::class,
-                    'updateDocument'
+                    'updateDocument',
                 ]
             );
 
@@ -186,7 +188,7 @@ Route::middleware('auth:sanctum')->group(function () {
                 '/helpers/{userId}/documents/{documentId}',
                 [
                     AdminController::class,
-                    'viewDocument'
+                    'viewDocument',
                 ]
             );
 
@@ -194,7 +196,7 @@ Route::middleware('auth:sanctum')->group(function () {
                 '/helpers/{userId}/status',
                 [
                     AdminController::class,
-                    'updateHelperStatus'
+                    'updateHelperStatus',
                 ]
             );
         });

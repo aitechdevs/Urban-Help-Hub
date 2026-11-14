@@ -8,6 +8,7 @@ import { formatMoney } from "@/lib/regions";
 import { useLanguage } from "@/components/LanguageProvider";
 import { API_URL } from "@/lib/api";
 import Link from "next/link";
+import PayPalPayment from "@/components/PayPalPayment";
 
 type User = {
   id: number;
@@ -21,6 +22,7 @@ type User = {
 type Candidate = {
   assignment_id: number;
   status: string;
+  agreed_fixed_price?: string | number | null;
   agreed_hourly_rate?: string | number | null;
   helper_name: string;
   headline?: string | null;
@@ -29,6 +31,10 @@ type Candidate = {
 };
 
 type PaymentSummary = {
+  id: number;
+  provider: string;
+  customer_confirmed_at?: string | null;
+  installments?: { stage: string; amount_minor: number; status: string }[];
   currency: string;
   subtotal_amount: string | number;
   platform_fee: string | number;
@@ -132,7 +138,8 @@ export default function CustomerDashboard() {
   }, [user]);
 
   async function confirmHelper(taskId: number, assignmentId: number) {
-    if (!window.confirm("Confirm this Helper for your task? Other Helper responses will be closed.")) return;
+    const quote = tasks.find((task) => task.id === taskId)?.candidates.find((candidate) => candidate.assignment_id === assignmentId)?.agreed_fixed_price;
+    if (!quote || !window.confirm(`Accept this Helper's fixed quote of ${quote} ${tasks.find((task) => task.id === taskId)?.currency || "CAD"}? Pay 50% now and 50% after completion. Other Helper responses will be closed.`)) return;
     const token = getToken();
     if (!token) return;
     setBusyAssignment(assignmentId);
@@ -433,7 +440,7 @@ export default function CustomerDashboard() {
                   <div className="mt-4 flex flex-wrap gap-4 text-xs font-semibold text-slate-500"><span>📍 {[task.city, task.province].filter(Boolean).join(", ")}</span><span>📅 {task.scheduled_date || "Flexible"}</span><span>◷ {task.scheduled_start_time?.slice(0, 5) || "Flexible"}</span></div>
                   {task.status === "pending_approval" && <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800"><p className="font-black">Awaiting Admin approval</p><p className="mt-1">UrbanHelpHub will review this task before notifying matching Helpers.</p></div>}
                   {task.status === "rejected" && <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"><p className="font-black">Task not approved</p><p className="mt-1">{task.status_note || "Please review the task details and contact support."}</p></div>}
-                  {task.candidates?.length > 0 && <div className="mt-5 border-t border-slate-100 pt-4"><p className="text-xs font-black uppercase tracking-wide text-slate-400">Helper</p><div className="mt-3 space-y-3">{task.candidates.map((candidate) => <div key={candidate.assignment_id} className="flex flex-col gap-3 rounded-2xl bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-black text-[var(--navy)]">{candidate.helper_name}</p><p className="mt-1 text-xs text-slate-500">{candidate.headline || "Verified UrbanHelpHub Helper"}{candidate.agreed_hourly_rate ? ` · ${formatMoney(candidate.agreed_hourly_rate, task.currency || "CAD")}/hr` : ""}</p></div><div className="flex flex-wrap items-center gap-2">{candidate.status === "accepted" ? <button type="button" disabled={busyAssignment === candidate.assignment_id} onClick={() => confirmHelper(task.id, candidate.assignment_id)} className="rounded-xl bg-[var(--green)] px-4 py-2.5 text-sm font-black text-white disabled:opacity-50">{busyAssignment === candidate.assignment_id ? "Confirming..." : "Confirm Helper"}</button> : <span className="text-sm font-black text-emerald-700">✓ {prettyStatus(candidate.status)}</span>}{task.status === "awaiting_completion" && <button type="button" disabled={busyTask === task.id} onClick={() => window.confirm("Confirm that this job has been completed satisfactorily?") && taskAction(task.id, "confirm-completion")} className="rounded-xl bg-[var(--green)] px-4 py-2.5 text-sm font-black text-white disabled:opacity-50">{busyTask === task.id ? "Confirming..." : "Confirm completion"}</button>}{task.status === "completed" && !task.my_review && <button type="button" disabled={busyTask === task.id} onClick={() => reviewTask(task.id)} className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-black text-[var(--navy)] disabled:opacity-50">Leave review</button>}{task.my_review && <span className="text-sm font-black text-amber-600">{"★".repeat(task.my_review.rating)}</span>}</div></div>)}</div>{task.payment && <div className="mt-3 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900"><p className="font-black">Payment: {prettyStatus(task.payment.status)}</p><p className="mt-1">Service total: {formatMoney(task.payment.total_amount, task.payment.currency)} · Platform fee: {formatMoney(task.payment.platform_fee, task.payment.currency)}</p></div>}</div>}
+                  {task.candidates?.length > 0 && <div className="mt-5 border-t border-slate-100 pt-4"><p className="text-xs font-black uppercase tracking-wide text-slate-400">Helper</p><div className="mt-3 space-y-3">{task.candidates.map((candidate) => <div key={candidate.assignment_id} className="flex flex-col gap-3 rounded-2xl bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-black text-[var(--navy)]">{candidate.helper_name}</p><p className="mt-1 text-xs text-slate-500">{candidate.headline || "Verified UrbanHelpHub Helper"}{candidate.agreed_fixed_price ? ` · Fixed quote: ${formatMoney(candidate.agreed_fixed_price, task.currency || "CAD")}` : " · Awaiting fixed quote"}</p></div><div className="flex flex-wrap items-center gap-2">{candidate.status === "accepted" ? <button type="button" disabled={busyAssignment === candidate.assignment_id} onClick={() => confirmHelper(task.id, candidate.assignment_id)} className="rounded-xl bg-[var(--green)] px-4 py-2.5 text-sm font-black text-white disabled:opacity-50">{busyAssignment === candidate.assignment_id ? "Confirming..." : "Confirm Helper"}</button> : <span className="text-sm font-black text-emerald-700">✓ {prettyStatus(candidate.status)}</span>}{task.status === "awaiting_completion" && <button type="button" disabled={busyTask === task.id} onClick={() => window.confirm("Confirm that this job has been completed satisfactorily?") && taskAction(task.id, "confirm-completion")} className="rounded-xl bg-[var(--green)] px-4 py-2.5 text-sm font-black text-white disabled:opacity-50">{busyTask === task.id ? "Confirming..." : "Confirm completion"}</button>}{task.status === "completed" && !task.my_review && <button type="button" disabled={busyTask === task.id} onClick={() => reviewTask(task.id)} className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-black text-[var(--navy)] disabled:opacity-50">Leave review</button>}{task.my_review && <span className="text-sm font-black text-amber-600">{"★".repeat(task.my_review.rating)}</span>}</div></div>)}</div>{task.payment?.provider === "paypal" ? <PayPalPayment payment={task.payment} /> : task.payment && <div className="mt-3 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900"><p className="font-black">Payment: {prettyStatus(task.payment.status)}</p><p className="mt-1">Service total: {formatMoney(task.payment.total_amount, task.payment.currency)} · Platform fee: {formatMoney(task.payment.platform_fee, task.payment.currency)}</p></div>}</div>}
                 </article>)}
               </div>
             ) : <div className="mt-8 rounded-[24px] border-2 border-dashed border-slate-200 bg-slate-50/60 px-5 py-12 text-center">
