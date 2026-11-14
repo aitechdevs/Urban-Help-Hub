@@ -27,7 +27,7 @@ class PayPalClient
             if (! $token) {
                 throw new HttpResponseException(response()->json(['message' => 'PayPal authentication failed.'], 502));
             }
-            $http = Http::timeout(30)->acceptJson()->withToken($token);
+            $http = Http::timeout(30)->asJson()->acceptJson()->withToken($token);
             if ($requestId) {
                 $http = $http->withHeaders(['PayPal-Request-Id' => $requestId]);
             }

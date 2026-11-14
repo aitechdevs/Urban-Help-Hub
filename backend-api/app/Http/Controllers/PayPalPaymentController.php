@@ -54,6 +54,7 @@ class PayPalPaymentController extends Controller
             if (in_array($order['status'] ?? '', ['APPROVED', 'COMPLETED'], true)) {
                 if ($order['status'] === 'APPROVED') {
                     $order = $this->paypal->request('POST', 'v2/checkout/orders/'.$installment->paypal_order_id.'/capture', [], 'capture-'.$installment->request_id);
+                    $order = $this->paypal->request('GET', 'v2/checkout/orders/'.$installment->paypal_order_id);
                 }
                 $this->recordCapture($payment, $installment, $order);
 
@@ -77,6 +78,7 @@ class PayPalPaymentController extends Controller
             $order = $this->paypal->request('GET', 'v2/checkout/orders/'.$data['order_id']);
             if (($order['status'] ?? '') === 'APPROVED') {
                 $order = $this->paypal->request('POST', 'v2/checkout/orders/'.$data['order_id'].'/capture', [], 'capture-'.$installment->request_id);
+                $order = $this->paypal->request('GET', 'v2/checkout/orders/'.$data['order_id']);
             }
             $this->recordCapture($payment, $installment, $order);
         });

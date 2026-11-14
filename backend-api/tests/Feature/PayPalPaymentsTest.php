@@ -30,6 +30,10 @@ class PayPalPaymentsTest extends TestCase
 
     private bool $failPayout = false;
 
+    private bool $approvalRequired = false;
+
+    private bool $capturePosted = false;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -53,6 +57,12 @@ class PayPalPaymentsTest extends TestCase
             if ($request->method() === 'POST' && str_ends_with($url, '/v2/checkout/orders')) {
                 return Http::response(['id' => 'order-'.$request['purchase_units'][0]['custom_id'], 'links' => [['rel' => 'payer-action', 'href' => 'https://www.sandbox.paypal.com/checkoutnow?token=test']]], 201);
             }
+            if ($request->method() === 'POST' && preg_match('~/v2/checkout/orders/order-\d+/capture$~', $url)) {
+                $this->assertTrue($request->hasHeader('Content-Type', 'application/json'));
+                $this->capturePosted = true;
+
+                return Http::response(['id' => 'minimal-order', 'status' => 'COMPLETED'], 201);
+            }
             if (preg_match('~/v2/checkout/orders/(order-\d+)$~', $url, $match)) {
                 $installment = DB::table('payment_installments')->where('paypal_order_id', $match[1])->first();
                 $capture = array_replace_recursive([
@@ -61,7 +71,7 @@ class PayPalPaymentsTest extends TestCase
                     'seller_receivable_breakdown' => ['paypal_fee' => ['currency_code' => 'CAD', 'value' => '2.00']],
                 ], $this->captureOverrides);
 
-                return Http::response(['id' => $match[1], 'status' => 'COMPLETED', 'purchase_units' => [[
+                return Http::response(['id' => $match[1], 'status' => $this->approvalRequired && ! $this->capturePosted ? 'APPROVED' : 'COMPLETED', 'purchase_units' => [[
                     'custom_id' => (string) $installment->id, 'payee' => ['merchant_id' => 'test-merchant'],
                     'payments' => ['captures' => [$capture]],
                 ]]]);
@@ -302,5 +312,18 @@ class PayPalPaymentsTest extends TestCase
 
         $this->assertDatabaseHas('payouts', ['id' => $payoutId, 'status' => 'processing', 'processed_at' => null, 'paid_at' => null]);
         Http::assertNotSent(fn (Request $request) => str_ends_with($request->url(), '/v1/payments/payouts'));
+    }
+
+    public function test_capture_uses_json_and_fetches_full_order_after_minimal_provider_response(): void
+    {
+        $paymentId = $this->confirmMatch();
+        $this->approvalRequired = true;
+
+        $this->pay($paymentId, 'commitment');
+
+        $this->assertTrue($this->capturePosted);
+        $this->assertDatabaseHas('payment_installments', ['payment_id' => $paymentId, 'stage' => 'commitment', 'status' => 'completed']);
+        $this->assertDatabaseHas('payments', ['id' => $paymentId, 'status' => 'partially_paid']);
+        $this->assertDatabaseHas('payouts', ['payment_id' => $paymentId, 'status' => 'pending', 'paid_at' => null]);
     }
 }
