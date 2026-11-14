@@ -43,8 +43,8 @@ class PayPalPaymentController extends Controller
                     ]],
                     'payment_source' => ['paypal' => ['experience_context' => [
                         'user_action' => 'PAY_NOW', 'shipping_preference' => 'NO_SHIPPING',
-                        'return_url' => $frontend.'/dashboard?paypal_payment='.$paymentId,
-                        'cancel_url' => $frontend.'/dashboard?paypal_cancelled=1',
+                        'return_url' => $frontend.'/payments/?paypal_payment='.$paymentId,
+                        'cancel_url' => $frontend.'/payments/?paypal_cancelled=1',
                     ]]],
                 ], $installment->request_id);
                 abort_unless(! empty($order['id']), 502, 'PayPal did not return an order.');

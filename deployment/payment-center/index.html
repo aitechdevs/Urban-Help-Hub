@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Payments | UrbanHelpHub</title>
+<style>
+body{margin:0;background:#f4f7fa;color:#102f50;font:16px/1.6 system-ui,sans-serif}header,main{max-width:960px;margin:auto;padding:24px}header{display:flex;justify-content:space-between;align-items:center}a{color:#123f70}h1{margin-bottom:8px}article{background:white;border:1px solid #d6e1eb;border-radius:16px;padding:24px;margin:20px 0}button,.link{background:#123f70;color:white;border:0;border-radius:8px;padding:12px 18px;cursor:pointer;font:inherit;display:inline-block}button:disabled{opacity:.5;cursor:wait}input{font:inherit;border:1px solid #94a8bc;border-radius:6px;padding:8px;max-width:95%}label{display:block;margin:12px 0}label input[type=checkbox]{margin-right:8px}p{margin:8px 0}.muted{color:#53677c}.error{color:#9d2020}#status{white-space:pre-wrap}#refresh{background:transparent;color:#123f70;border:1px solid #123f70}small{display:block}button+button{margin-left:8px}
+</style>
+</head>
+<body>
+<header><strong>UrbanHelpHub</strong><a id="back" href="/dashboard/">Back to dashboard</a></header>
+<main><h1>Payments</h1><p class="muted">50% commitment, remaining balance after completion. The helper receives 60%; the platform covers PayPal fees and applicable taxes from its 40%.</p><p id="status" role="status" aria-live="polite">Loading your account…</p><button id="refresh" type="button">Refresh</button><section id="content" aria-label="Payment activity"></section></main>
+<script type="module" src="./payments.js"></script>
+</body>
+</html>

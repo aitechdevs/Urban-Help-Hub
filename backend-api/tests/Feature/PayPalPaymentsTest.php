@@ -111,6 +111,9 @@ class PayPalPaymentsTest extends TestCase
         $order = DB::table('payment_installments')->where('payment_id', $paymentId)->where('stage', $stage)->value('paypal_order_id');
         $this->postJson('/api/customer/payments/'.$paymentId.'/capture', ['order_id' => $order])->assertOk();
 
+        Http::assertSent(fn (Request $request) => str_ends_with($request->url(), '/v2/checkout/orders')
+            && str_contains($request['payment_source']['paypal']['experience_context']['return_url'], '/payments/?paypal_payment='));
+
         return $order;
     }
 

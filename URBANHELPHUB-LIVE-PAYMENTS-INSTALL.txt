@@ -85,3 +85,35 @@ URBANHELPHUB PAYPAL PAYMENTS — INSTALLATION
     before cutover. Existing unmatched opportunities need a fixed quote;
     existing matched Stripe jobs require a separate migration/reconciliation
     decision, since they do not have PayPal installments.
+
+READABLE PAYMENT CENTER FOR AN EXISTING STATIC WEBSITE
+
+The compiled customer-dashboard patch was withdrawn after a Microsoft
+Defender detection. Do not deploy that archive or disable protection.
+A separate readable implementation is in deployment/payment-center/.
+It uses no third-party scripts, copied Next.js bundles, dynamic evaluation,
+or external JavaScript dependencies. Automated tests verify functionality;
+they do not certify an antivirus result.
+
+1. Review index.html and payments.js. Leave antivirus enabled and scan the
+   new files before deploying. If anything is flagged, stop and investigate.
+2. Upload those two files to public_html/payments/ with file permissions 644.
+   The source-only deployment/paypal-payment-center-source.zip contains
+   the same two files beneath payments/ and can be extracted in public_html.
+   No existing frontend assets need replacing.
+3. In backend-api/app/Http/Controllers/PayPalPaymentController.php, use:
+   'return_url' => $frontend.'/payments/?paypal_payment='.$paymentId,
+   'cancel_url' => $frontend.'/payments/?paypal_cancelled=1',
+   These values are already updated in this branch. Keep FRONTEND_URL set
+   to https://urbanhelphub.com. Preserve all other runtime credentials.
+4. Sign in normally on https://urbanhelphub.com, then visit
+   https://urbanhelphub.com/payments/ using that same browser and hostname.
+   Customers see installments, Helpers can save a payout email, and Admins
+   can authorize and refresh payouts. All actions remain protected by the
+   backend authentication and release rules. The existing dashboard's
+   legacy Stripe button is not replaced; use the Payments page for testing.
+5. Existing PayPal orders may retain their earlier return URL. If redirected
+   to the old dashboard, return to /payments/ and use its payment button to
+   reconcile the existing approved order; do not create another payment.
+6. Run source tests using: node deployment/payment-center/payments.test.mjs
+   PayPal credentials and real sandbox provider acceptance remain required.
