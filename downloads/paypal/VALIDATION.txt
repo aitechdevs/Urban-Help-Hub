@@ -1,0 +1,11 @@
+UrbanHelpHub PayPal migration — validation
+
+Frontend: production Next.js static export built from source with NEXT_PUBLIC_API_URL=https://api.urbanhelphub.com/api. All 34 previously deployed non-dynamic routes returned HTTP 200 from the exported site. Helper detail pages use /admin/helper/?id=... with an Apache redirect for legacy numeric URLs. Apache redirects are included but require validation on cPanel.
+
+Backend: 25 tests passed, 181 assertions. Includes mocked PayPal deposit/balance and full-upfront payment, required payment before work, 60% payout hold/release, authoritative capture/fee checks, signed webhook rejection, disputes/refunds, duplicate events, uncertain payout submission, ownership, profile approval preserving quotes, password reset/token revocation, task messaging and prevention of task edits after payment creation. No Stripe API routes registered. Actual local API health and category endpoints returned HTTP 200.
+
+Browser: source-built static frontend tested in headless Chromium against intercepted test API responses. Passed full upfront, 50% deposit plus early balance, capture return cleanup, admin confirmation/tax/attestation gate and release/submit/refresh, profile editor, messages, task editing with revision check, helper PayPal settings, static admin helper review and password request/reset. No Stripe requests or browser runtime errors observed.
+
+Lint: 0 errors, 26 warnings (existing image performance warnings and navigation guidance). PHP formatting and git diff whitespace checks passed. All ZIP archives passed integrity checks; SHA256SUMS.txt records package hashes.
+
+Deployment not performed. Actual PayPal credentials, sandbox/live checkout, webhook delivery and PayPal Payouts activation remain unverified. Production SMTP is not exercised; retain and verify the existing SMTP configuration. Only supported PayPal currencies with configured CAD reporting rates can be booked. No production credentials, database, uploads, vendor or node_modules are included. The old compiled patches were not reused or modified. No Defender scan was available; no antivirus clearance is claimed.
