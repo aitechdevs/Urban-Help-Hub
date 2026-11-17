@@ -19,3 +19,28 @@ a[href]:not([aria-label]):not(:has(img))::after {
  display: none !important;
  mask: none !important;
 }
+
+/* Actionable summary cards: unobtrusive motion, visible keyboard support. */
+.uhh-summary:is(button, a[href]) {
+  cursor: pointer;
+  transition: transform 180ms ease, box-shadow 180ms ease;
+  transform-origin: center center;
+}
+@media (hover: hover) and (pointer: fine) {
+  .uhh-summary:is(button, a[href]):not(:disabled):hover {
+    transform: translateY(-2px) scale(1.01);
+    box-shadow: 0 8px 24px rgb(8 47 91 / 10%);
+  }
+}
+.uhh-summary:is(button, a[href]):active {
+  transform: scale(.99);
+}
+.uhh-summary:is(button, a[href]):focus-visible {
+  outline: 3px solid #2fad45;
+  outline-offset: 4px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .uhh-summary:is(button, a[href]) { transition: none; }
+  .uhh-summary:is(button, a[href]):hover,
+  .uhh-summary:is(button, a[href]):active { transform: none; }
+}
