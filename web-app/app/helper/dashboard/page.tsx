@@ -1,7 +1,5 @@
 "use client";
 
-import MessagesPanel from "@/components/MessagesPanel";
-import { useDashboardNavigation } from "@/lib/dashboard-navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import NotificationBell from "@/components/NotificationBell";
@@ -9,6 +7,7 @@ import RegionSelector from "@/components/RegionSelector";
 import { formatMoney, storedCurrency } from "@/lib/regions";
 import { useLanguage } from "@/components/LanguageProvider";
 import { API_URL } from "@/lib/api";
+import { PayPalAccount } from "@/components/PayPalPayment";
 
 type User = {
   id: number;
@@ -167,20 +166,7 @@ export default function HelperDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [loggingOut, setLoggingOut] = useState(false);
-  const { section, navigate } = useDashboardNavigation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  useEffect(() => {
-    function close(event: KeyboardEvent) {
-      if (event.key === "Escape" && mobileMenuOpen) {
-        setMobileMenuOpen(false);
-        const trigger = Array.from(document.querySelectorAll<HTMLButtonElement>('button[aria-controls="helper-mobile-menu"]')).find((button) => button.getClientRects().length > 0);
-        trigger?.focus();
-      }
-    }
-    window.addEventListener("keydown", close);
-    return () => window.removeEventListener("keydown", close);
-  }, [mobileMenuOpen]);
-
   const [documentType, setDocumentType] = useState("identity_document");
   const [documentName, setDocumentName] = useState("");
   const [documentNumber, setDocumentNumber] = useState("");
@@ -194,6 +180,10 @@ export default function HelperDashboardPage() {
   const [marketplaceError, setMarketplaceError] = useState("");
   const [busyOpportunity, setBusyOpportunity] = useState<number | null>(null);
   const [busyJob, setBusyJob] = useState<number | null>(null);
+  function scrollToArea(id: string) {
+    setMobileMenuOpen(false);
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 
   useEffect(() => {
     async function loadDashboard() {
@@ -354,6 +344,8 @@ export default function HelperDashboardPage() {
   }
 
   async function respondToOpportunity(assignmentId: number, decision: "accept" | "decline") {
+    const fixedPrice = decision === "accept" ? window.prompt("Propose your fixed total for the entire task in its listed currency. You will receive 60%; the customer must accept this quote. PayPal fees and taxes are covered by the platform.") : null;
+    if (decision === "accept" && (fixedPrice === null || !Number.isFinite(Number(fixedPrice)) || Number(fixedPrice) < 0.02)) return;
     if (decision === "decline" && !window.confirm("Decline this opportunity?")) return;
     const token = getToken();
     if (!token) return;
@@ -363,7 +355,8 @@ export default function HelperDashboardPage() {
     try {
       const response = await fetch(`${API_URL}/helper/opportunities/${assignmentId}/${decision}`, {
         method: "PUT",
-        headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
+        headers: { Accept: "application/json", "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(decision === "accept" ? { agreed_fixed_price: fixedPrice } : {}),
       });
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.message || `Unable to ${decision} this opportunity.`);
@@ -586,7 +579,7 @@ export default function HelperDashboardPage() {
   }
 
   return (
-    <main id="overview" tabIndex={-1} className="min-h-screen bg-[#f7f9fc] text-slate-900">
+    <main className="min-h-screen bg-[#f7f9fc] text-slate-900">
       <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 sm:px-8">
           <div className="flex items-center gap-9">
@@ -606,8 +599,6 @@ export default function HelperDashboardPage() {
             <nav className="hidden items-center gap-6 lg:flex">
               <button
                 type="button"
-                onClick={() => navigate("overview")}
-                aria-current={section === "overview" ? "location" : undefined}
                 className="font-bold text-[#082f5b]"
               >
                 {t("dashboard")}
@@ -615,8 +606,7 @@ export default function HelperDashboardPage() {
 
               <button
                 type="button"
-                onClick={() => navigate("opportunities")}
-                aria-current={section === "opportunities" ? "location" : undefined}
+                onClick={() => scrollToArea("helper-opportunities")}
                 className="font-semibold text-slate-600 transition hover:text-[#082f5b]"
               >
                 {t("opportunities")}
@@ -624,8 +614,7 @@ export default function HelperDashboardPage() {
 
               <button
                 type="button"
-                onClick={() => navigate("jobs")}
-                aria-current={section === "jobs" ? "location" : undefined}
+                onClick={() => scrollToArea("helper-jobs")}
                 className="font-semibold text-slate-600 transition hover:text-[#082f5b]"
               >
                 {t("jobs")}
@@ -633,8 +622,7 @@ export default function HelperDashboardPage() {
 
               <button
                 type="button"
-                onClick={() => navigate("messages")}
-                aria-current={section === "messages" ? "location" : undefined}
+                onClick={() => router.push("/helper/messages")}
                 className="font-semibold text-slate-600 transition hover:text-[#082f5b]"
               >
                 {t("messages")}
@@ -642,8 +630,7 @@ export default function HelperDashboardPage() {
 
               <button
                 type="button"
-                onClick={() => navigate("earnings")}
-                aria-current={section === "earnings" ? "location" : undefined}
+                onClick={() => scrollToArea("helper-earnings")}
                 className="font-semibold text-slate-600 transition hover:text-[#082f5b]"
               >
                 {t("earnings")}
@@ -690,29 +677,31 @@ export default function HelperDashboardPage() {
             onClick={() => setMobileMenuOpen((current) => !current)}
             className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-xl text-[#082f5b] sm:hidden"
             aria-label="Open menu"
-            aria-expanded={mobileMenuOpen}
-            aria-controls="helper-mobile-menu"
           >
             ☰
           </button>
         </div>
 
         {mobileMenuOpen && (
-          <div id="helper-mobile-menu" className="border-t border-slate-100 bg-white px-5 py-4 sm:hidden">
+          <div className="border-t border-slate-100 bg-white px-5 py-4 sm:hidden">
             <div className="space-y-1">
               <p className="mb-3 font-bold text-[#082f5b]">
                 {data.user.name}
               </p>
 
-<nav aria-label="Helper mobile navigation" className="grid gap-1">
-                <button type="button" onClick={() => { navigate("overview"); setMobileMenuOpen(false); }} aria-current={section === "overview" ? "location" : undefined} className="rounded-lg px-3 py-2 text-left font-semibold text-slate-600">{t("dashboard")}</button>
-                <button type="button" onClick={() => { navigate("opportunities"); setMobileMenuOpen(false); }} aria-current={section === "opportunities" ? "location" : undefined} className="rounded-lg px-3 py-2 text-left font-semibold text-slate-600">{t("opportunities")}</button>
-                <button type="button" onClick={() => { navigate("jobs"); setMobileMenuOpen(false); }} aria-current={section === "jobs" ? "location" : undefined} className="rounded-lg px-3 py-2 text-left font-semibold text-slate-600">{t("jobs")}</button>
-                <button type="button" onClick={() => { navigate("messages"); setMobileMenuOpen(false); }} aria-current={section === "messages" ? "location" : undefined} className="rounded-lg px-3 py-2 text-left font-semibold text-slate-600">{t("messages")}</button>
-                <button type="button" onClick={() => { navigate("earnings"); setMobileMenuOpen(false); }} aria-current={section === "earnings" ? "location" : undefined} className="rounded-lg px-3 py-2 text-left font-semibold text-slate-600">{t("earnings")}</button>
-              </nav>
-              <div className="flex items-center gap-3 py-2"><RegionSelector /><NotificationBell /></div>
+              <button
+                type="button"
+                className="block w-full rounded-lg bg-slate-50 px-3 py-2 text-left font-semibold text-[#082f5b]"
+              >
+                {t("dashboard")}
+              </button>
 
+              {[
+                { label: "Opportunities", id: "helper-opportunities" },
+                { label: "My jobs", id: "helper-jobs" },
+                { label: "Earnings", id: "helper-earnings" },
+              ].map((item) => <button key={item.id} type="button" onClick={() => scrollToArea(item.id)} className="block w-full rounded-lg px-3 py-2 text-left font-semibold text-slate-600">{item.label}</button>)}
+              <button type="button" onClick={() => router.push("/helper/messages")} className="block w-full rounded-lg px-3 py-2 text-left font-semibold text-slate-600">Messages</button>
               <button
                 type="button"
                 onClick={() => router.push("/become-a-helper")}
@@ -732,12 +721,6 @@ export default function HelperDashboardPage() {
           </div>
         )}
       </header>
-
-      <nav aria-label="Helper tablet navigation" className="hidden flex-wrap gap-5 border-b border-slate-200 bg-white px-5 py-3 sm:flex lg:hidden">
-        {[["dashboard", "overview"], ["opportunities", "opportunities"], ["jobs", "jobs"], ["messages", "messages"], ["earnings", "earnings"]].map(([label, id]) => (
-          <button key={id} type="button" onClick={() => navigate(id)} aria-current={section === id ? "location" : undefined} className="text-sm font-semibold text-slate-600">{t(label)}</button>
-        ))}
-      </nav>
 
       <section className="bg-[#082f5b]">
         <div className="mx-auto max-w-7xl px-5 py-9 sm:px-8 sm:py-11">
@@ -808,6 +791,7 @@ export default function HelperDashboardPage() {
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard
             label={t("approvedServices")}
+            onClick={() => scrollToArea("helper-services")}
             value={String(approvedServices)}
             note={
               pendingServices > 0
@@ -819,6 +803,7 @@ export default function HelperDashboardPage() {
 
           <StatCard
             label={t("availableDays")}
+            onClick={() => scrollToArea("helper-availability")}
             value={String(availableDays)}
             note="Your normal working week"
             icon="◷"
@@ -826,6 +811,7 @@ export default function HelperDashboardPage() {
 
           <StatCard
             label={t("activeJobs")}
+            onClick={() => scrollToArea("helper-jobs")}
             value={String(activeJobs.length)}
             note={
               activeJobs.length > 0
@@ -839,6 +825,7 @@ export default function HelperDashboardPage() {
 
           <StatCard
             label={t("earnings")}
+            onClick={() => scrollToArea("helper-earnings")}
             value={formatMoney(totalEarnings, currentCurrency)}
             note={
               pendingEarnings > 0
@@ -858,7 +845,8 @@ export default function HelperDashboardPage() {
                 {marketplaceError}
               </div>
             )}
-            <section id="services" tabIndex={-1} className="rounded-3xl border border-slate-200 bg-white shadow-sm">
+            <PayPalAccount />
+            <section id="helper-services" className="scroll-mt-24 rounded-3xl border border-slate-200 bg-white shadow-sm">
               <div className="flex items-center justify-between gap-4 border-b border-slate-100 px-6 py-5 sm:px-7">
                 <div>
                   <h2 className="text-xl font-bold text-[#082f5b]">
@@ -968,7 +956,7 @@ export default function HelperDashboardPage() {
               )}
             </section>
 
-            <section id="opportunities" tabIndex={-1} className="rounded-3xl border border-slate-200 bg-white shadow-sm">
+            <section id="helper-opportunities" className="scroll-mt-24 rounded-3xl border border-slate-200 bg-white shadow-sm">
               <div className="flex items-center justify-between gap-4 border-b border-slate-100 px-6 py-5 sm:px-7">
                 <div>
                   <h2 className="text-xl font-bold text-[#082f5b]">
@@ -1026,7 +1014,7 @@ export default function HelperDashboardPage() {
               )}
             </section>
 
-            <section id="jobs" tabIndex={-1} className="rounded-3xl border border-slate-200 bg-white shadow-sm">
+            <section id="helper-jobs" className="scroll-mt-24 rounded-3xl border border-slate-200 bg-white shadow-sm">
               <div className="border-b border-slate-100 px-6 py-5 sm:px-7">
                 <h2 className="text-xl font-bold text-[#082f5b]">
                   {t("upcomingJobs")}
@@ -1071,7 +1059,7 @@ export default function HelperDashboardPage() {
               )}
             </section>
 
-            <section id="earnings" tabIndex={-1} className="rounded-3xl border border-slate-200 bg-white shadow-sm">
+            <section id="helper-earnings" className="scroll-mt-24 rounded-3xl border border-slate-200 bg-white shadow-sm">
               <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5 sm:px-7">
                 <div><h2 className="text-xl font-bold text-[#082f5b]">{t("completedJobs")}</h2><p className="mt-1 text-sm text-slate-500">Work history, earnings and reviews</p></div>
                 <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">{completedJobs.length} completed</span>
@@ -1200,7 +1188,7 @@ export default function HelperDashboardPage() {
               </button>
             </section>
 
-            <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <section id="helper-availability" className="scroll-mt-24 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-lg font-bold text-[#082f5b]">
@@ -1272,12 +1260,26 @@ export default function HelperDashboardPage() {
               </div>
             </section>
 
-            <section id="messages" tabIndex={-1} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
               <h2 className="text-lg font-bold text-[#082f5b]">
                 {t("messages")}
               </h2>
 
-              <MessagesPanel />
+              <div className="mt-5 flex gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#eef3f8]">
+                  💬
+                </div>
+
+                <div>
+                  <p className="font-semibold text-slate-700">
+                    No new messages
+                  </p>
+
+                  <p className="mt-1 text-sm leading-5 text-slate-500">
+                    Customer and UrbanHelpHub messages will appear here.
+                  </p>
+                </div>
+              </div>
             </section>
           </aside>
         </div>
@@ -1305,14 +1307,16 @@ function StatCard({
   value,
   note,
   icon,
+  onClick,
 }: {
   label: string;
   value: string;
   note: string;
   icon: string;
+  onClick: () => void;
 }) {
   return (
-    <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+    <button type="button" onClick={onClick} className="w-full cursor-pointer rounded-3xl border border-slate-200 bg-white p-6 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-green-200 hover:shadow-md focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-green-100">
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-sm font-semibold text-slate-500">
@@ -1332,7 +1336,7 @@ function StatCard({
           {icon}
         </div>
       </div>
-    </div>
+    </button>
   );
 }
 

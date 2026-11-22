@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 
 import { API_URL } from "@/lib/api";
 
@@ -145,7 +145,8 @@ function requirementList(service: Service) {
 }
 
 export default function HelperReviewPage() {
-  const params = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
+  const helperId = searchParams.get("id");
   const router = useRouter();
   const [application, setApplication] = useState<HelperApplication | null>(null);
   const [loading, setLoading] = useState(true);
@@ -155,6 +156,14 @@ export default function HelperReviewPage() {
   const [notice, setNotice] = useState("");
 
   const loadApplication = useCallback(async (quiet = false) => {
+    // The identifier is a browser query parameter because the frontend is a static export.
+    if (!helperId || !/^\d+$/.test(helperId)) {
+      setApplication(null);
+      setError("No valid Helper ID was provided. Return to the Admin dashboard and select a Helper.");
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
     const token = getToken();
     if (!token) {
       router.replace("/login");
@@ -166,7 +175,7 @@ export default function HelperReviewPage() {
     setError("");
 
     try {
-      const response = await fetch(`${API_URL}/admin/helpers/${params.id}`, {
+      const response = await fetch(`${API_URL}/admin/helpers/${helperId}`, {
         headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
         cache: "no-store",
       });
@@ -187,7 +196,7 @@ export default function HelperReviewPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [params.id, router]);
+  }, [helperId, router]);
 
   useEffect(() => {
     // The request is the external synchronization performed by this effect.

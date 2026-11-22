@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 
 import { API_URL } from "@/lib/api";
 
-type UserRole = "customer" | "helper" | "admin";
+type UserRole = "customer" | "helper" | "admin" | "super_admin";
 
 type User = {
   id: number;
@@ -44,7 +44,7 @@ function clearUrbanHelpHubAuth() {
 }
 
 function routeForRole(role: UserRole) {
-  if (role === "admin") {
+  if (role === "admin" || role === "super_admin") {
     return "/admin";
   }
 

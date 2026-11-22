@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+export const dynamic = "force-static";
 
 // Absolute root paths match the existing cPanel frontend deployment.
 export default function manifest(): MetadataRoute.Manifest {

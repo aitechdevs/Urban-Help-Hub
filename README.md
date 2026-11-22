@@ -1,89 +1,93 @@
-# UrbanHelpHub
+# Urban Help Hub
 
-Source and static deployment snapshot assembled 20 October 2026 from the supplied
-cPanel exports plus the updates prepared in this project. Hosting remains a
-Next.js static frontend on Truehost cPanel with a separate Laravel API.
-No Node.js process is needed on the hosting server.
+**Local help, connected.** Urban Help Hub is a Canada-focused marketplace connecting customers with local helpers for everyday services and tasks.
 
-## Repository structure
+Website: [urbanhelphub.com](https://urbanhelphub.com/)
+
+## Project status — 22 November 2026
+
+This repository contains several historical and ongoing frontend workflows. The `web-app/` Next.js frontend is under active development on the `feature/uhh-static-release` branch. The previously assembled static deployment workflow under `frontend/` remains in the repository for reference and comparison. **The new release candidate has not been deployed to production.** The live website and Laravel API are separate systems.
+
+The proposed frontend static export builds successfully with Next.js 16.4.6 and produces 16/16 pages. The production-dependency npm audit reports zero findings as of the local test on 22 November 2026. These checks do **not** prove that PayPal transactions, authentication, role permissions, messaging, PWA behavior, or deployment have passed end-to-end validation.
+
+## Features under development
+
+- Customer dashboard for posting tasks, managing bookings and payment status
+- Helper dashboard for services, availability, task activity and payout setup
+- Administrative review of customers, helpers, tasks and marketplace activity
+- Super Administrator page for managing administrators and permissions
+- Task-related customer–helper messaging and completion-based read-only conversations
+- PayPal Sandbox checkout and payout user interfaces, integrated with a separate Laravel backend
+- Canada-focused regions, localization and responsive web design
+
+Availability and correctness of these features depend on backend authorization, configuration and end-to-end testing.
+
+## Architecture
 
 | Path | Purpose |
 | --- | --- |
-| `backend-api/` | Laravel source with task editing, Mobile Salon, customer profile approval, final approval email and single-document/replacement updates merged |
-| `frontend/public_html/` | Complete latest prepared static frontend, ready to copy to the website document root |
-| `frontend/static-maintenance/` | Maintained JavaScript modules, additional pages and Python static builder |
-| `frontend/static-baseline/` | Supplied cPanel static export used as the reproducible build baseline |
-| `frontend/nextjs-reference/` | Earlier supplied Next.js/TypeScript source, for reference and future migration |
-| `docs/` | Upload, architecture, deployment and validation notes |
+| `web-app/` | Next.js / React / TypeScript frontend; source for the new static-export release candidate |
+| `backend-api/` | Laravel API, database migrations, payment services and authentication logic |
+| `frontend/` | Earlier consolidated static deployment artifacts and maintenance workflow |
+| `docs/` | Architecture, historical consolidation, deployment and validation documentation |
+| `releases/` | Existing release-related material |
+| `tools/` | Existing project utilities |
 
-Read [GitHub upload](docs/GITHUB.md), [deployment](docs/DEPLOYMENT.md), and
-[source status](docs/SOURCE-STATUS.md) before rebuilding or deploying.
+The frontend can be hosted as static assets on Apache/cPanel; the Laravel API handles server-side operations. Do not put Laravel source, `.env` files, databases or private uploads in the public web root.
 
-## Consolidated import
+## Build the Next.js frontend
 
-The source archive and the three later patches are consolidated in the order
-listed in [the import report](docs/CONSOLIDATION.md). The existing repository's
-handoff and UI/PWA branches are retained in Git history. `web-app/` preserves
-the UI/PWA branch unchanged; `frontend/nextjs-reference/` preserves the reference
-source supplied with the archive. Both are historical/reference workflows:
-neither replaces the maintained static document root. The earlier repository
-README is retained in [docs/REPOSITORY-UI-PWA.md](docs/REPOSITORY-UI-PWA.md).
-
-No deployment is performed by importing, rebuilding, or running the checks.
-Do not upload the repository root or backend source into the public document root.
-
-## Rebuild the maintained frontend locally
-
-Requires Python 3.9+ only; run from the repository root with a new output folder:
+Requirements: a supported Node.js release, npm, and the project source.
 
 ```bash
-python3 frontend/static-maintenance/build-static.py frontend/static-baseline dist/public_html
+cd web-app
+npm ci
+npx tsc --noEmit
+npm audit --omit=dev
 ```
 
-The output should match `frontend/public_html/`. Do not rebuild the deployed site
-from `nextjs-reference/`; it predates cPanel-only changes.
+Configure `NEXT_PUBLIC_API_URL` to point to the intended Laravel API. For example, in Windows Command Prompt:
 
-Run the static regression checks from the repository root:
+```cmd
+set "NEXT_PUBLIC_API_URL=https://api.example.com/api"
+npm run build -- --webpack
+```
+
+In PowerShell:
+
+```powershell
+$env:NEXT_PUBLIC_API_URL = "https://api.example.com/api"
+npm run build -- --webpack
+```
+
+The project uses `output: "export"` with `trailingSlash: true`; the generated static website is written to `web-app/out/`. The `out/` folder is a generated artifact and is not committed to Git. Static frontend generation does not provide a Next.js server runtime.
+
+For development:
 
 ```bash
-python3 frontend/static-maintenance/tests/validate-static.py
-node --test frontend/static-maintenance/tests/patch-flows.test.mjs web-app/tests/service-worker.test.mjs
+cd web-app
+npm run dev
 ```
 
-## Backend setup for a new development environment
+## Existing static deployment workflow
 
-Use PHP 8.5 (matches the working cPanel CLI) and Composer. Install dependencies
-from `composer.lock`, copy `.env.example` to `.env`, set a LOCAL database and
-credentials, generate an application key and run migrations. Production secrets
-and database contents are intentionally excluded. Never generate a replacement
-APP_KEY or run fresh/reset migrations on the existing live site.
+The repository also includes a historical/static-maintenance workflow assembled from earlier cPanel sources. It has separate documentation and should not be silently mixed with the new `web-app/` release candidate. See [deployment](docs/DEPLOYMENT.md), [source status](docs/SOURCE-STATUS.md) and [consolidation history](docs/CONSOLIDATION.md) before choosing a deployment source.
 
-```bash
-cd backend-api
-composer install
-cp .env.example .env
-php artisan key:generate
-# Set your local database configuration before continuing.
-php artisan migrate
-php artisan serve
-```
+An earlier Python-based static maintenance builder is located at `frontend/static-maintenance/build-static.py`; its output and testing steps are documented within `docs/`. Do not assume an old `frontend/public_html/` snapshot matches the latest Next.js release candidate.
 
-The existing production mail cron remains separate from GitHub. See deployment
-notes. The default development mailer can remain `log` to avoid real emails.
+## Deployment and security
 
-## Document policy
+- Build locally, review the generated files and back up the live site before any deployment.
+- Deploy **only** reviewed static output contents to the frontend document root; keep the Laravel backend in its existing protected location.
+- Never commit secrets, `.env` files, payment credentials, production backups, databases, or private user documents.
+- `NEXT_PUBLIC_*` environment variables are public in browser bundles; never place secret keys in them.
+- Verify PayPal payments and webhook signatures on the Laravel server. Use PayPal Sandbox for development tests.
+- Enforce identity, role permissions, chat authorization and payout rules on the backend, not solely in the browser.
+- Review dependency advisories and execute automated and manual regression tests before a production release.
+- Do not run destructive database migrations or replace the production Laravel `APP_KEY` during a frontend deployment.
 
-One active, approved, unexpired identity document is reused across all services.
-A pending/approved valid identity blocks another upload. Rejected or expired
-identity can be replaced from the dashboard without resubmitting profile,
-services or availability. Admin reviews the replacement; final verification
-remains an explicit admin decision. Individual service approvals are preserved.
-No automated document authenticity claim is made.
+## Contributions and licensing
 
-## Scope
+Development is maintained by the project team. Use a feature branch and a reviewable pull request; do not deploy automatically from unreviewed changes. Report security issues privately rather than publishing secrets in GitHub issues.
 
-This is the complete available source plus prepared static deployment, not a
-fresh download of today's cPanel files. It excludes credentials, databases,
-private helper uploads, dependency folders and runtime files. Retain a separate
-private cPanel backup of production data. No GitHub repository has been created
-or pushed by this packaging operation.
+**All rights reserved**, unless the repository owner supplies an explicit license. Public visibility of code does not automatically grant permission to reuse or redistribute it.
