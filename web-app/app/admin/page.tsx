@@ -1,6 +1,5 @@
 "use client";
 
-import { useDashboardNavigation } from "@/lib/dashboard-navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import NotificationBell from "@/components/NotificationBell";
@@ -8,6 +7,7 @@ import RegionSelector from "@/components/RegionSelector";
 import { formatMoney } from "@/lib/regions";
 import { useLanguage } from "@/components/LanguageProvider";
 import { API_URL } from "@/lib/api";
+import PayPalRelease from "@/components/PayPalRelease";
 
 type AdminUser = {
   id: number;
@@ -56,6 +56,11 @@ type AdminTask = {
 };
 
 type PaymentRecord = {
+  customer_confirmed_at?: string | null;
+  payout_submitted_at?: string | null;
+  provider_fees: number | string;
+  payout_fee: number | string;
+  tax_amount: number | string;
   id: number;
   task_id: number;
   task_title: string;
@@ -325,20 +330,7 @@ export default function AdminDashboardPage() {
   const [filter, setFilter] = useState<
     "all" | "pending" | "verified" | "active"
   >("pending");
-  const { section, navigate } = useDashboardNavigation();
-  function go(id: string) { navigate(id); setMobileMenu(false); }
   const [mobileMenu, setMobileMenu] = useState(false);
-  useEffect(() => {
-    function close(event: KeyboardEvent) {
-      if (event.key === "Escape" && mobileMenu) {
-        setMobileMenu(false);
-        const trigger = Array.from(document.querySelectorAll<HTMLButtonElement>('button[aria-controls="admin-mobile-menu"]')).find((button) => button.getClientRects().length > 0);
-        trigger?.focus();
-      }
-    }
-    window.addEventListener("keydown", close);
-    return () => window.removeEventListener("keydown", close);
-  }, [mobileMenu]);
   const [loggingOut, setLoggingOut] = useState(false);
   const [busyFinance, setBusyFinance] = useState<string | null>(null);
   const [busyTaskReview, setBusyTaskReview] = useState<number | null>(null);
@@ -504,6 +496,25 @@ export default function AdminDashboardPage() {
     }
   }
 
+  async function paypalPayout(id: number, action: "release" | "submit" | "refresh", body?: object) {
+    setBusyFinance(`payouts-${id}`);
+    try {
+      const token = window.sessionStorage.getItem("urbanhelphub_token") || window.localStorage.getItem("urbanhelphub_token");
+      const send = async (step: string, data?: object) => {
+        const response = await fetch(`${API_URL}/admin/payouts/${id}/${step}`, {
+          method: "POST", headers: { Accept: "application/json", "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify(data || {}),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message || "Unable to process PayPal payout. Refresh before retrying.");
+      };
+      await send(action, body);
+      if (action === "release") await send("submit");
+      window.location.reload();
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "PayPal request failed. Refresh the page to check its status.");
+    } finally { setBusyFinance(null); }
+  }
+
   async function updateFinance(kind: "payments" | "payouts", id: number, status: "paid" | "failed") {
     const prompt = status === "paid"
       ? `Mark this ${kind === "payments" ? "Customer payment" : "Helper payout"} as paid?`
@@ -621,56 +632,19 @@ export default function AdminDashboardPage() {
   }
 
   const stats = dashboard.stats;
-  const navigation = (
-<div className="space-y-1">
-            <SidebarButton
-              icon="dashboard"
-              label={t("dashboard")}
-              active={section === "overview"}
-              onClick={() => go("overview")}
-            />
-
-            <SidebarButton
-              icon="helpers"
-              label={t("helpers")}
-              active={section === "helpers"}
-              onClick={() => { setFilter("all"); go("helpers"); }}
-              badge={stats.pending_helpers}
-            />
-
-            <SidebarButton
-              icon="customers"
-              label={t("customers")}
-            />
-
-            <SidebarButton
-              icon="tasks"
-              label="Tasks"
-              active={section === "task-approvals"}
-              badge={stats.pending_tasks}
-              onClick={() => go("task-approvals")}
-            />
-
-            <SidebarButton
-              icon="payments"
-              label={t("payments")}
-              active={section === "payments"}
-              badge={stats.pending_payments + stats.pending_payouts}
-              onClick={() => go("payments")}
-            />
-
-            <SidebarButton
-              icon="shield"
-              label="Verification"
-              active={section === "verification"}
-              onClick={() => go("verification")}
-              badge={stats.pending_services}
-            />
-          </div>
-  );
+  const isSuperAdmin = dashboard.admin.role === "super_admin";
+  function moveToSection(id: string) {
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setMobileMenu(false);
+  }
+  function selectHelpers(next: "all" | "pending" | "verified" | "active") {
+    setSearch("");
+    setFilter(next);
+    moveToSection("helper-review-queue");
+  }
 
   return (
-    <main id="overview" tabIndex={-1} className="min-h-screen bg-[#f6f8fb] text-slate-900">
+    <main className="min-h-screen bg-[#f6f8fb] text-slate-900">
       <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-[1500px] items-center justify-between px-5 py-4 sm:px-7">
           <div className="flex items-center gap-8">
@@ -688,7 +662,7 @@ export default function AdminDashboardPage() {
             </button>
 
             <span className="hidden rounded-full bg-[#082f5b] px-3 py-1 text-xs font-bold uppercase tracking-wider text-white md:inline-flex">
-              Admin
+              {dashboard.admin.role === "super_admin" ? "Super Admin" : "Admin"}
             </span>
           </div>
 
@@ -725,21 +699,18 @@ export default function AdminDashboardPage() {
             onClick={() => setMobileMenu((value) => !value)}
             className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-slate-200 text-[#082f5b] transition hover:bg-slate-50 sm:hidden"
             aria-label="Open Admin menu"
-            aria-expanded={mobileMenu}
-            aria-controls="admin-mobile-menu"
           >
             <Icon name="menu" />
           </button>
         </div>
 
         {mobileMenu && (
-          <div id="admin-mobile-menu" className="border-t border-slate-100 bg-white px-5 py-4 sm:hidden">
-            {navigation}
-            <div className="flex items-center gap-3 py-2"><RegionSelector /><NotificationBell /></div>
+          <div className="border-t border-slate-100 bg-white px-5 py-4 sm:hidden">
             <p className="font-bold text-[#082f5b]">
               {dashboard.admin.name}
             </p>
 
+            {isSuperAdmin && <button type="button" onClick={() => router.push("/admin/administrators")} className="mt-3 block w-full rounded-xl bg-[#eef4f8] px-4 py-3 text-left text-sm font-bold text-[#082f5b]">Create Admin User</button>}
             <button
               type="button"
               onClick={logout}
@@ -752,14 +723,62 @@ export default function AdminDashboardPage() {
         )}
       </header>
 
-      <nav aria-label="Admin tablet navigation" className="hidden border-b border-slate-200 bg-white px-5 py-3 sm:block lg:hidden">{navigation}</nav>
       <div className="mx-auto flex max-w-[1500px]">
         <aside className="hidden min-h-[calc(100vh-73px)] w-64 shrink-0 border-r border-slate-200 bg-white p-5 lg:block">
           <p className="px-3 pb-3 text-xs font-bold uppercase tracking-[0.14em] text-slate-400">
             Workspace
           </p>
 
-          {navigation}
+          <div className="space-y-1">
+            <SidebarButton
+              icon="dashboard"
+              label={t("dashboard")}
+              active
+              onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+            />
+
+            <SidebarButton
+              icon="helpers"
+              label={t("helpers")}
+              badge={stats.pending_helpers}
+              onClick={() => selectHelpers("pending")}
+            />
+
+            <SidebarButton
+              icon="customers"
+              label={t("customers")}
+              onClick={() => moveToSection("admin-customers")}
+            />
+
+            <SidebarButton
+              icon="tasks"
+              label="Tasks"
+              badge={stats.pending_tasks}
+              onClick={() => document.getElementById("task-approvals")?.scrollIntoView({ behavior: "smooth" })}
+            />
+
+            <SidebarButton
+              icon="payments"
+              label={t("payments")}
+              badge={stats.pending_payments + stats.pending_payouts}
+              onClick={() => document.getElementById("payments")?.scrollIntoView({ behavior: "smooth" })}
+            />
+
+            <SidebarButton
+              icon="shield"
+              label="Verification"
+              badge={stats.pending_services}
+              onClick={() => moveToSection("admin-verification")}
+            />
+
+            {isSuperAdmin && (
+              <SidebarButton
+                icon="users"
+                label="Create Admin User"
+                onClick={() => router.push("/admin/administrators")}
+              />
+            )}
+          </div>
 
           <div className="mt-8 rounded-2xl bg-[#eef4f8] p-4">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-[#082f5b]">
@@ -817,7 +836,7 @@ export default function AdminDashboardPage() {
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <StatCard
                 title="Pending Helpers"
-                onClick={() => { setFilter("pending"); go("helpers"); }}
+                onClick={() => selectHelpers("pending")}
                 value={stats.pending_helpers}
                 note="Need application review"
                 icon="clock"
@@ -827,7 +846,7 @@ export default function AdminDashboardPage() {
 
               <StatCard
                 title="Active Helpers"
-                onClick={() => { setFilter("active"); go("helpers"); }}
+                onClick={() => selectHelpers("active")}
                 value={stats.active_helpers}
                 note={`${stats.verified_helpers} verified`}
                 icon="check"
@@ -836,6 +855,7 @@ export default function AdminDashboardPage() {
 
               <StatCard
                 title="Customers"
+                onClick={() => moveToSection("admin-customers")}
                 value={stats.total_customers}
                 note="Registered customers"
                 icon="customers"
@@ -844,7 +864,7 @@ export default function AdminDashboardPage() {
 
               <StatCard
                 title="Total Helpers"
-                onClick={() => { setFilter("all"); go("helpers"); }}
+                onClick={() => selectHelpers("all")}
                 value={stats.total_helpers}
                 note={`${stats.pending_services} services pending`}
                 icon="helpers"
@@ -852,7 +872,7 @@ export default function AdminDashboardPage() {
               />
             </div>
 
-            <div id="helpers" tabIndex={-1} className="mt-8 rounded-3xl border border-slate-200 bg-white shadow-sm">
+            <div id="helper-review-queue" className="mt-8 scroll-mt-24 rounded-3xl border border-slate-200 bg-white shadow-sm">
               <div className="border-b border-slate-100 p-5 sm:p-7">
                 <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
                   <div>
@@ -929,7 +949,7 @@ export default function AdminDashboardPage() {
                       key={helper.id}
                       onClick={() =>
                         router.push(
-                          `/admin/helpers/${helper.id}`
+                          `/admin/helpers/?id=${encodeURIComponent(String(helper.id))}`
                         )
                       }
                       className="group flex w-full cursor-pointer flex-col gap-5 p-5 text-left transition hover:bg-[#f8fbf9] focus:bg-[#f8fbf9] focus:outline-none sm:p-7 xl:flex-row xl:items-center xl:justify-between"
@@ -1023,7 +1043,7 @@ export default function AdminDashboardPage() {
             </div>
 
             <div className="mt-8 grid gap-6 xl:grid-cols-2">
-              <div id="verification" tabIndex={-1} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div id="admin-verification" className="scroll-mt-24 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
                 <div className="flex items-start justify-between">
                   <div>
                     <h2 className="text-lg font-bold text-[#082f5b]">
@@ -1081,7 +1101,7 @@ export default function AdminDashboardPage() {
                     type="button"
                     onClick={() =>
                       router.push(
-                        `/admin/helpers/${visibleHelpers[0].id}`
+                        `/admin/helpers/?id=${encodeURIComponent(String(visibleHelpers[0].id))}`
                       )
                     }
                     className="mt-6 inline-flex cursor-pointer items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-bold text-[#082f5b] transition hover:-translate-y-0.5 hover:bg-green-50 focus:outline-none focus:ring-4 focus:ring-white/20 active:translate-y-0"
@@ -1093,7 +1113,17 @@ export default function AdminDashboardPage() {
               </div>
             </div>
 
-            <section id="task-approvals" tabIndex={-1} className="mt-8 scroll-mt-24 rounded-3xl border border-slate-200 bg-white shadow-sm">
+            <section id="admin-customers" className="mt-8 scroll-mt-24 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-7">
+              <h2 className="text-xl font-bold text-[#082f5b]">Customers overview</h2>
+              <p className="mt-2 text-sm text-slate-600">{stats.total_customers} registered customers. The activity below includes only customers linked to the current payment and pending-approval records, not a complete customer directory.</p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs font-semibold text-slate-500">Pending task submissions</p><p className="mt-2 text-2xl font-bold text-[#082f5b]">{tasks.length}</p></div>
+                <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs font-semibold text-slate-500">Payment records loaded</p><p className="mt-2 text-2xl font-bold text-[#082f5b]">{payments.length}</p></div>
+              </div>
+              <p className="mt-4 text-sm text-slate-500">A complete searchable customer directory requires a dedicated, authorised backend endpoint. No customer data is exposed by this section beyond the existing admin API responses.</p>
+            </section>
+
+            <section id="task-approvals" className="mt-8 scroll-mt-24 rounded-3xl border border-slate-200 bg-white shadow-sm">
               <div className="flex flex-col gap-4 border-b border-slate-100 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-7">
                 <div><div className="flex items-center gap-3"><h2 className="text-xl font-bold text-[#082f5b]">Customer task approvals</h2>{stats.pending_tasks > 0 && <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">{stats.pending_tasks} awaiting review</span>}</div><p className="mt-1 text-sm text-slate-500">Review safety, clarity, schedule and location before notifying Helpers.</p></div>
                 <Icon name="tasks" className="h-7 w-7 text-[#082f5b]" />
@@ -1108,7 +1138,7 @@ export default function AdminDashboardPage() {
               </div>}
             </section>
 
-            <section id="payments" tabIndex={-1} className="mt-8 scroll-mt-24 rounded-3xl border border-slate-200 bg-white shadow-sm">
+            <section id="payments" className="mt-8 scroll-mt-24 rounded-3xl border border-slate-200 bg-white shadow-sm">
               <div className="border-b border-slate-100 p-5 sm:p-7">
                 <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
                   <div>
@@ -1131,11 +1161,12 @@ export default function AdminDashboardPage() {
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2"><h3 className="font-bold text-[#082f5b]">#{payment.task_id} · {payment.task_title}</h3><StatusBadge value={payment.status} /></div>
                       <p className="mt-1 text-sm text-slate-500">{payment.customer_name} → {payment.helper_name || "Helper"} · {payment.provider}</p>
-                      <div className="mt-3 flex flex-wrap gap-4 text-sm font-semibold text-slate-600"><span>Customer total: {formatMoney(payment.total_amount, payment.currency)}</span><span>CAD total: {formatMoney(payment.settlement_total_amount, "CAD")}</span><span>CAD fee: {formatMoney(payment.settlement_platform_fee, "CAD")}</span><span>CAD Helper net: {formatMoney(payment.settlement_helper_net, "CAD")}</span><span>Payout: {statusText(payment.payout_status)}</span></div>
+                      <div className="mt-3 flex flex-wrap gap-4 text-sm font-semibold text-slate-600"><span>Customer total: {formatMoney(payment.total_amount, payment.currency)}</span><span>CAD total: {formatMoney(payment.settlement_total_amount, "CAD")}</span><span>CAD fee: {formatMoney(payment.settlement_platform_fee, "CAD")}</span><span>CAD Helper net: {formatMoney(payment.settlement_helper_net, "CAD")}</span><span>Payout: {statusText(payment.payout_status)}</span>{payment.provider === "paypal" && <span>CAD platform net after recorded fees and tax: {formatMoney(Number(payment.settlement_platform_fee) - (Number(payment.provider_fees || 0) + Number(payment.payout_fee || 0) + Number(payment.tax_amount || 0)) * Number(payment.settlement_exchange_rate), "CAD")}</span>}</div>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {payment.status === "pending" && <><button type="button" disabled={busyFinance === `payments-${payment.id}`} onClick={() => updateFinance("payments", payment.id, "paid")} className="rounded-xl bg-[#2fad45] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">Mark payment paid</button><button type="button" disabled={busyFinance === `payments-${payment.id}`} onClick={() => updateFinance("payments", payment.id, "failed")} className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-bold text-red-600 disabled:opacity-50">Mark failed</button></>}
-                      {payment.status === "paid" && payment.payout_id && payment.payout_status === "pending" && <button type="button" disabled={busyFinance === `payouts-${payment.payout_id}`} onClick={() => updateFinance("payouts", payment.payout_id!, "paid")} className="rounded-xl bg-[#082f5b] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">Release Helper payout</button>}
+                      {payment.provider !== "paypal" && payment.provider !== "stripe" && payment.status === "pending" && <><button type="button" disabled={busyFinance === `payments-${payment.id}`} onClick={() => updateFinance("payments", payment.id, "paid")} className="rounded-xl bg-[#2fad45] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">Mark payment paid</button><button type="button" disabled={busyFinance === `payments-${payment.id}`} onClick={() => updateFinance("payments", payment.id, "failed")} className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-bold text-red-600 disabled:opacity-50">Mark failed</button></>}
+                      {payment.provider !== "paypal" && payment.provider !== "stripe" && payment.status === "paid" && payment.payout_id && payment.payout_status === "pending" && <button type="button" disabled={busyFinance === `payouts-${payment.payout_id}`} onClick={() => updateFinance("payouts", payment.payout_id!, "paid")} className="rounded-xl bg-[#082f5b] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">Release Helper payout</button>}
+                      {payment.provider === "paypal" && payment.payout_id && <PayPalRelease id={payment.payout_id} status={payment.payout_status || "pending"} eligible={payment.status === "paid" && !!payment.customer_confirmed_at} submitted={!!payment.payout_submitted_at} busy={busyFinance === `payouts-${payment.payout_id}`} onAction={paypalPayout} />}
                       {payment.payout_status === "paid" && <span className="rounded-xl bg-green-50 px-4 py-2.5 text-sm font-bold text-green-700">✓ Settled</span>}
                     </div>
                   </div>
@@ -1165,9 +1196,7 @@ function SidebarButton({
   return (
     <button
       type="button"
-      title={onClick ? `${label} section` : "Customer management is not implemented in this project."}
-      disabled={!onClick}
-      aria-current={active ? "location" : undefined}
+      title={`${label} section`}
       onClick={onClick}
       className={`flex w-full cursor-pointer items-center justify-between rounded-xl px-3 py-3 text-sm font-bold transition focus:outline-none focus:ring-4 focus:ring-green-50 ${
         active
@@ -1208,23 +1237,21 @@ function StatCard({
   note,
   icon,
   action,
-  attention = false,
   onClick,
+  attention = false,
 }: {
   title: string;
   value: number;
   note: string;
   icon: IconName;
   action: string;
+  onClick: () => void;
   attention?: boolean;
-  onClick?: () => void;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      disabled={!onClick}
-      title={onClick ? action : "Customer management is not implemented in this project."}
       className="group w-full cursor-pointer rounded-3xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-1 hover:border-green-200 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-green-50 active:translate-y-0 sm:p-6"
     >
       <div className="flex items-start justify-between gap-4">
