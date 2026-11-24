@@ -33,12 +33,12 @@
  backend-api/tests/Feature/PayPalPaymentsTest.php   | 369 +++++++++++++++++++++
  backend-api/tests/Feature/PayPalPayoutTest.php     | 339 +++++++++++++++++++
  web-app/app/admin/administrators/page.tsx          |  19 +-
- web-app/app/admin/page.tsx                         |  48 ++-
+ web-app/app/admin/page.tsx                         |  55 ++-
  web-app/app/dashboard/page.tsx                     |  30 +-
  web-app/app/helper/dashboard/page.tsx              |  26 +-
  web-app/app/post-a-task/page.tsx                   |  64 +++-
- web-app/components/PayPalPayment.tsx               |  45 ++-
+ web-app/components/PayPalPayment.tsx               |  94 ++++--
  web-app/components/TaskConversations.tsx           |  13 +-
  web-app/public/sw.js                               |   2 +-
  web-app/tests/service-worker.test.mjs              |  10 +-
- 43 files changed, 3118 insertions(+), 701 deletions(-)
+ 43 files changed, 3162 insertions(+), 713 deletions(-)

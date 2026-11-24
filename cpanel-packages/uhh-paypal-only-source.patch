@@ -4190,7 +4190,7 @@ index cd73ce6..e1431d7 100644
            <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
              <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
 diff --git a/web-app/app/admin/page.tsx b/web-app/app/admin/page.tsx
-index 99251ef..8f42024 100644
+index 99251ef..e5b6b25 100644
 --- a/web-app/app/admin/page.tsx
 +++ b/web-app/app/admin/page.tsx
 @@ -1,6 +1,6 @@
@@ -4229,7 +4229,7 @@ index 99251ef..8f42024 100644
    const [search, setSearch] = useState("");
    const [filter, setFilter] = useState<
      "all" | "pending" | "verified" | "active"
-@@ -496,8 +510,9 @@ export default function AdminDashboardPage() {
+@@ -496,22 +510,27 @@ export default function AdminDashboardPage() {
      }
    }
  
@@ -4240,11 +4240,17 @@ index 99251ef..8f42024 100644
      try {
        const token = window.sessionStorage.getItem("urbanhelphub_token") || window.localStorage.getItem("urbanhelphub_token");
        const send = async (step: string, data?: object) => {
-@@ -506,12 +521,13 @@ export default function AdminDashboardPage() {
+         const response = await fetch(`${API_URL}/admin/payouts/${id}/${step}`, {
+           method: "POST", headers: { Accept: "application/json", "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify(data || {}),
          });
-         const result = await response.json();
-         if (!response.ok) throw new Error(result.message || "Unable to process PayPal payout. Refresh before retrying.");
-+        return result.message as string;
+-        const result = await response.json();
+-        if (!response.ok) throw new Error(result.message || "Unable to process PayPal payout. Refresh before retrying.");
++        const result = await response.json().catch(() => null);
++        if (!response.ok) {
++          const validationMessage = Object.values(result?.errors ?? {}).flat().find((value) => typeof value === "string");
++          throw new Error(validationMessage || result?.message || `PayPal payout action failed (HTTP ${response.status}).`);
++        }
++        return result?.message || "PayPal payout status updated.";
        };
 -      await send(action, body);
 -      if (action === "release") await send("submit");
@@ -4258,7 +4264,7 @@ index 99251ef..8f42024 100644
      } finally { setBusyFinance(null); }
    }
  
-@@ -613,7 +629,7 @@ export default function AdminDashboardPage() {
+@@ -613,7 +632,7 @@ export default function AdminDashboardPage() {
                Admin workspace unavailable
              </h1>
  
@@ -4267,7 +4273,7 @@ index 99251ef..8f42024 100644
                {error}
              </p>
  
-@@ -1156,6 +1172,7 @@ export default function AdminDashboardPage() {
+@@ -1156,6 +1175,7 @@ export default function AdminDashboardPage() {
                </div>
  
                {payments.length === 0 ? <div className="px-6 py-14 text-center text-sm font-semibold text-slate-500">Completed-task payments will appear here.</div> : <div className="divide-y divide-slate-100">
@@ -4275,7 +4281,7 @@ index 99251ef..8f42024 100644
                  {payments.map((payment) => <article key={payment.id} className="p-5 sm:p-7">
                    <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
                      <div className="min-w-0">
-@@ -1164,9 +1181,20 @@ export default function AdminDashboardPage() {
+@@ -1164,9 +1184,20 @@ export default function AdminDashboardPage() {
                        <div className="mt-3 flex flex-wrap gap-4 text-sm font-semibold text-slate-600"><span>Customer total: {formatMoney(payment.total_amount, payment.currency)}</span><span>CAD total: {formatMoney(payment.settlement_total_amount, "CAD")}</span><span>CAD fee: {formatMoney(payment.settlement_platform_fee, "CAD")}</span><span>CAD Helper net: {formatMoney(payment.settlement_helper_net, "CAD")}</span><span>Payout: {statusText(payment.payout_status)}</span>{payment.provider === "paypal" && <span>CAD platform net after recorded fees and tax: {formatMoney(Number(payment.settlement_platform_fee) - (Number(payment.provider_fees || 0) + Number(payment.payout_fee || 0) + Number(payment.tax_amount || 0)) * Number(payment.settlement_exchange_rate), "CAD")}</span>}</div>
                      </div>
                      <div className="flex flex-wrap gap-2">
@@ -4586,7 +4592,7 @@ index 011ec8e..9568b4e 100644
    </main>;
  }
 diff --git a/web-app/components/PayPalPayment.tsx b/web-app/components/PayPalPayment.tsx
-index 90d6e5f..70d9b4b 100644
+index 90d6e5f..328f9a8 100644
 --- a/web-app/components/PayPalPayment.tsx
 +++ b/web-app/components/PayPalPayment.tsx
 @@ -1,6 +1,6 @@
@@ -4620,7 +4626,7 @@ index 90d6e5f..70d9b4b 100644
    }, [payment.id]);
  
    async function pay(stage: string) {
-@@ -75,36 +80,56 @@ export default function PayPalPayment({ payment }: { payment: PayPalPaymentSumma
+@@ -75,36 +80,85 @@ export default function PayPalPayment({ payment }: { payment: PayPalPaymentSumma
        <p>{item.stage === "commitment" ? "Commitment" : "Final balance"}: {formatMoney(item.amount_minor / 100, payment.currency)} · {item.status}</p>
        {item.status === "pending" && !["blocked", "refunded", "failed"].includes(payment.status) && (item.stage === "commitment" || (depositPaid && payment.customer_confirmed_at)) && <button type="button" disabled={busy} onClick={() => pay(item.stage)} className="mt-2 rounded-xl bg-blue-900 px-4 py-2 font-bold text-white disabled:opacity-50">{busy ? "Processing…" : `Pay ${item.stage === "commitment" ? "commitment" : "balance"} with PayPal`}</button>}
      </div>)}</div>
@@ -4630,59 +4636,98 @@ index 90d6e5f..70d9b4b 100644
  }
  
  export function PayPalAccount() {
++  const [accountEmail, setAccountEmail] = useState<string | null>();
++  const [editing, setEditing] = useState(false);
    const [email, setEmail] = useState("");
 +  const [password, setPassword] = useState("");
    const [message, setMessage] = useState("");
 +  const [saved, setSaved] = useState(false);
+   const [busy, setBusy] = useState(false);
 +  const messageRef = useRef<HTMLParagraphElement>(null);
 +  useEffect(() => {
 +    if (message && !saved) messageRef.current?.focus();
 +  }, [message, saved]);
-   const [busy, setBusy] = useState(false);
++
    useEffect(() => {
 -    fetch(`${API_URL}/helper/paypal`, { headers: headers() })
-+    fetch(`${API_URL}/helper/paypal/payout-account`, { headers: headers() })
++    fetch(`${API_URL}/helper/paypal/payout-account`, { headers: headers(), cache: "no-store" })
        .then(async (response) => {
          const result = await response.json();
          if (!response.ok) throw new Error(result.message || "Unable to load PayPal payout settings.");
 -        setEmail(result.data.paypal_email || "");
++        setAccountEmail(result.data.email || null);
 +        setEmail(result.data.email || "");
        }).catch((error) => setMessage(error instanceof Error ? error.message : "Unable to load settings."));
    }, []);
-   return <form className="rounded-3xl border border-slate-200 bg-white p-6" onSubmit={async (event) => {
+-  return <form className="rounded-3xl border border-slate-200 bg-white p-6" onSubmit={async (event) => {
 -    event.preventDefault(); setBusy(true); setMessage("");
-+    event.preventDefault(); setBusy(true); setSaved(false); setMessage("");
-     try {
+-    try {
 -      const response = await fetch(`${API_URL}/helper/paypal`, { method: "PUT", headers: headers(), body: JSON.stringify({ paypal_email: email }) });
-+      const response = await fetch(`${API_URL}/helper/paypal/payout-account`, { method: "PUT", headers: headers(), body: JSON.stringify({ email, password }) });
-       const result = await response.json();
-       if (!response.ok) throw new Error(result.message || "Unable to save PayPal email.");
-+      setPassword("");
-+      setSaved(true);
-       setMessage("PayPal payout email saved. Check it carefully before your first payout.");
-     } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to save."); }
-     finally { setBusy(false); }
-   }}>
+-      const result = await response.json();
+-      if (!response.ok) throw new Error(result.message || "Unable to save PayPal email.");
+-      setMessage("PayPal payout email saved. Check it carefully before your first payout.");
+-    } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to save."); }
+-    finally { setBusy(false); }
+-  }}>
++
++  return <section className="rounded-3xl border border-slate-200 bg-white p-6">
      <h2 className="font-bold text-[#082f5b]">PayPal payouts</h2>
      <p className="mt-2 text-sm text-slate-600">You receive 60% of the agreed total. The platform covers PayPal fees and taxes. Your full earnings remain held until the customer confirms completion, pays the balance and an admin releases them.</p>
 -    <label className="mt-3 block text-sm font-semibold">Your PayPal account email<input type="email" required maxLength={254} value={email} onChange={(event) => setEmail(event.target.value)} className="mt-2 block w-full rounded-xl border border-slate-300 p-3" /></label>
-+    <label className="mt-3 block text-sm font-semibold">Your PayPal account email<input type="email" required maxLength={254} onInvalid={(event) => {
-+      event.preventDefault();
-+      setSaved(false);
-+      setMessage(event.currentTarget.validationMessage);
-+      event.currentTarget.focus();
-+    }} value={email} onChange={(event) => setEmail(event.target.value)} className="mt-2 block w-full rounded-xl border border-slate-300 p-3" /></label>
-+    <label className="mt-3 block text-sm font-semibold">Current Urban Help Hub password
-+      <input type="password" autoComplete="current-password" required maxLength={1024} value={password} onChange={(event) => setPassword(event.target.value)} onInvalid={(event) => {
-+        event.preventDefault();
-+        setSaved(false);
-+        setMessage(event.currentTarget.validationMessage);
-+      }} className="mt-2 block w-full rounded-xl border border-slate-300 p-3" />
-+    </label>
-     <button disabled={busy} className="mt-3 rounded-xl bg-[#082f5b] px-4 py-2 font-bold text-white disabled:opacity-50">{busy ? "Saving…" : "Save PayPal email"}</button>
+-    <button disabled={busy} className="mt-3 rounded-xl bg-[#082f5b] px-4 py-2 font-bold text-white disabled:opacity-50">{busy ? "Saving…" : "Save PayPal email"}</button>
 -    {message && <p role="status" className="mt-2 text-sm">{message}</p>}
+-  </form>;
++    {accountEmail === undefined && !message && <p role="status" className="mt-3 text-sm text-slate-600">Loading payout account…</p>}
++    {accountEmail && !editing && <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
++      <div>
++        <p className="text-sm font-semibold text-emerald-700">PayPal payout account saved</p>
++        <p className="break-all text-sm text-slate-700">{accountEmail}</p>
++      </div>
++      <button type="button" className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-[#082f5b]" onClick={() => {
++        setEmail(accountEmail);
++        setMessage("");
++        setEditing(true);
++      }}>Change PayPal email</button>
++    </div>}
++    {(accountEmail === null || editing) && <form onSubmit={async (event) => {
++      event.preventDefault();
++      if (busy || (accountEmail && email.trim().toLowerCase() === accountEmail.toLowerCase())) return;
++      setBusy(true);
++      setSaved(false);
++      setMessage("");
++      try {
++        const normalizedEmail = email.trim().toLowerCase();
++        const response = await fetch(`${API_URL}/helper/paypal/payout-account`, {
++          method: "PUT", headers: headers(), body: JSON.stringify({ email: normalizedEmail, password }),
++        });
++        const result = await response.json();
++        if (!response.ok) throw new Error(result.message || "Unable to save PayPal email.");
++        setAccountEmail(normalizedEmail);
++        setPassword("");
++        setEditing(false);
++        setSaved(true);
++        setMessage("PayPal payout email saved.");
++      } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to save PayPal email."); }
++      finally { setBusy(false); }
++    }}>
++      <label className="mt-3 block text-sm font-semibold">Your PayPal account email
++        <input type="email" required maxLength={254} value={email} onChange={(event) => setEmail(event.target.value)} className="mt-2 block w-full rounded-xl border border-slate-300 p-3" />
++      </label>
++      <label className="mt-3 block text-sm font-semibold">Current Urban Help Hub password
++        <input type="password" autoComplete="current-password" required maxLength={1024} value={password} onChange={(event) => setPassword(event.target.value)} className="mt-2 block w-full rounded-xl border border-slate-300 p-3" />
++      </label>
++      <p className="mt-2 text-sm text-slate-600">Confirm your password when setting up or changing where your earnings are sent.</p>
++      <div className="mt-3 flex flex-wrap gap-3">
++        <button disabled={busy || email.trim().toLowerCase() === accountEmail?.toLowerCase()} className="rounded-xl bg-[#082f5b] px-4 py-2 font-bold text-white disabled:opacity-50">{busy ? "Saving…" : "Save PayPal email"}</button>
++        {editing && <button type="button" disabled={busy} className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold" onClick={() => {
++          setPassword("");
++          setMessage("");
++          setEditing(false);
++        }}>Cancel</button>}
++      </div>
++    </form>}
 +    {message && <p ref={messageRef} tabIndex={-1} role={saved ? "status" : "alert"} className={`mt-2 text-sm ${saved ? "text-emerald-700" : "text-red-700"}`}>{message}</p>}
-   </form>;
++  </section>;
  }
 diff --git a/web-app/components/TaskConversations.tsx b/web-app/components/TaskConversations.tsx
 index 85e79b2..5a3797d 100644
