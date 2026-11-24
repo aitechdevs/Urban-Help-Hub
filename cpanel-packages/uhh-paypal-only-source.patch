@@ -4548,6 +4548,37 @@ index 1e30379..579bdc2 100644
                </div>
              ) : <div className="mt-8 rounded-[24px] border-2 border-dashed border-slate-200 bg-slate-50/60 px-5 py-12 text-center">
  
+diff --git a/web-app/app/globals.css b/web-app/app/globals.css
+index e543dec..7c9d039 100644
+--- a/web-app/app/globals.css
++++ b/web-app/app/globals.css
+@@ -16,6 +16,26 @@ body {
+   font-family: Arial, Helvetica, sans-serif;
+ }
+ button, a, input { transition: all 160ms ease; }
++
++:where(
++  a[href],
++  button,
++  summary,
++  select,
++  input:is([type="button"], [type="submit"], [type="reset"], [type="checkbox"], [type="radio"], [type="file"], [type="color"], [type="image"]),
++  [role="button"],
++  [role="link"],
++  [role="tab"],
++  label:has(input:is([type="checkbox"], [type="radio"]):enabled)
++):not(:disabled, [aria-disabled="true"]) {
++  cursor: pointer;
++}
++
++:where(button, input, select, textarea):disabled,
++:where(a, button, [role="button"], [role="link"], [role="tab"])[aria-disabled="true"] {
++  cursor: not-allowed;
++}
++
+ ::selection { background: rgba(47,173,69,.2); }
+ 
+ .input {
 diff --git a/web-app/app/helper/dashboard/page.tsx b/web-app/app/helper/dashboard/page.tsx
 index abc5288..ba50692 100644
 --- a/web-app/app/helper/dashboard/page.tsx

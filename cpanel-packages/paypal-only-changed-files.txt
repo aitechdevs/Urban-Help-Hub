@@ -38,10 +38,11 @@
  web-app/app/admin/administrators/page.tsx          |  19 +-
  web-app/app/admin/page.tsx                         |  55 ++-
  web-app/app/dashboard/page.tsx                     |  30 +-
+ web-app/app/globals.css                            |  20 ++
  web-app/app/helper/dashboard/page.tsx              |  26 +-
  web-app/app/post-a-task/page.tsx                   |  64 +++-
  web-app/components/PayPalPayment.tsx               |  94 +++--
  web-app/components/TaskConversations.tsx           |  13 +-
  web-app/public/sw.js                               |   2 +-
  web-app/tests/service-worker.test.mjs              |  10 +-
- 46 files changed, 3299 insertions(+), 714 deletions(-)
+ 47 files changed, 3319 insertions(+), 714 deletions(-)
