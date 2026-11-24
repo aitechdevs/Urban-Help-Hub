@@ -1,5 +1,5 @@
 /* Only these public, self-contained assets may enter Cache Storage.
- * Never cache documents, API calls, cookies, tokens, Next.js chunks, or Stripe.
+ * Never cache documents, API calls, cookies, tokens, Next.js chunks, or payment pages.
  * Bump this version whenever the offline page or icons change.
  */
 const CACHE = "urbanhelphub-public-v1";

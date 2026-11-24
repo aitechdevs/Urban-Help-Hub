@@ -43,7 +43,7 @@ class CustomerTaskDetailsController extends Controller
             if (!$task || (int) $task->customer_id !== (int) $user->id) {
                 return ['error' => 'Task not found.', 'status' => 404];
             }
-            if (!in_array($task->status, ['draft', 'pending_approval', 'open', 'awaiting_confirmation', 'scheduled'], true)
+            if (!in_array($task->status, ['draft', 'pending_approval', 'rejected', 'open', 'awaiting_confirmation', 'scheduled'], true)
                 || DB::table('task_assignments')->where('task_id', $taskId)->whereIn('status', ['in_progress', 'awaiting_completion', 'completed'])->exists()
                 || DB::table('payments')->where('task_id', $taskId)->exists()) {
                 return ['error' => 'This task can no longer be edited. Work has started or payment is recorded.', 'status' => 409];

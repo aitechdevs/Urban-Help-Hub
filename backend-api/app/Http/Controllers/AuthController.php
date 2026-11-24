@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\TaskMatching;
+
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -177,6 +179,10 @@ class AuthController extends Controller
             'currency_code' => $user->role === 'admin' ? 'CAD' : self::COUNTRY_CURRENCIES[$countryCode],
             'language_code' => $languageCode,
         ])->save();
+
+        if ($user->role === 'helper' && $user->wasChanged('currency_code')) {
+            TaskMatching::offerOpenTasks($user->id);
+        }
 
         return response()->json([
             'success' => true,

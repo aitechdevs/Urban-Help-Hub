@@ -6,9 +6,8 @@ use App\Http\Controllers\HelperOnboardingController;
 use App\Http\Controllers\MarketplaceController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\PayPalPaymentController;
 use App\Http\Controllers\ServiceCategoryController;
-use App\Http\Controllers\StripeConnectController;
-use App\Http\Controllers\StripePaymentController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/service-categories', [
@@ -26,7 +25,7 @@ Route::post('/login', [
     'login'
 ]);
 
-Route::post('/stripe/webhook', [StripePaymentController::class, 'webhook']);
+Route::post('/paypal/webhook', [\App\Http\Controllers\PayPalController::class, 'webhook']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', [
@@ -83,16 +82,19 @@ Route::middleware('auth:sanctum')->group(function () {
         'deleteDocument'
     ]);
 
-    Route::get('/helper/stripe/status', [StripeConnectController::class, 'status']);
-    Route::post('/helper/stripe/onboarding-link', [StripeConnectController::class, 'onboardingLink']);
-    Route::post('/helper/stripe/dashboard-link', [StripeConnectController::class, 'dashboardLink']);
+    Route::get('/helper/paypal/payout-account', [\App\Http\Controllers\PayPalPayoutController::class, 'account']);
+    Route::put('/helper/paypal/payout-account', [\App\Http\Controllers\PayPalPayoutController::class, 'saveAccount'])->middleware('throttle:6,1');
+    Route::get('/customer/payments/{paymentId}/paypal/config', [\App\Http\Controllers\PayPalController::class, 'configuration']);
+    Route::post('/customer/payments/{paymentId}/paypal/create-order', [\App\Http\Controllers\PayPalController::class, 'createOrder']);
+    Route::post('/customer/payments/{paymentId}/paypal/capture', [\App\Http\Controllers\PayPalController::class, 'capture']);
 
     Route::get('/customer/tasks', [MarketplaceController::class, 'customerTasks']);
     Route::post('/customer/tasks', [MarketplaceController::class, 'createTask']);
     Route::put('/customer/tasks/{taskId}', [MarketplaceController::class, 'updateTask']);
     Route::put('/customer/tasks/{taskId}/confirm', [MarketplaceController::class, 'confirmHelper']);
     Route::put('/customer/tasks/{taskId}/confirm-completion', [MarketplaceController::class, 'confirmCompletion']);
-    Route::post('/customer/payments/{paymentId}/checkout', [StripePaymentController::class, 'checkout']);
+    Route::post('/customer/payments/{paymentId}/checkout', [PayPalPaymentController::class, 'checkout']);
+    Route::post('/customer/payments/{paymentId}/capture', [PayPalPaymentController::class, 'capture']);
     Route::put('/tasks/{taskId}/review', [MarketplaceController::class, 'submitReview']);
 
     Route::get('/helper/opportunities', [MarketplaceController::class, 'helperOpportunities']);
@@ -119,6 +121,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('admin')
         ->prefix('admin')
         ->group(function () {
+            Route::post('/payouts/{payoutId}/reconcile-paypal', [\App\Http\Controllers\PayPalPayoutController::class, 'reconcile'])->middleware('throttle:10,1');
+            Route::post('/payouts/{payoutId}/approve-paypal', [\App\Http\Controllers\PayPalPayoutController::class, 'approve'])->middleware('throttle:10,1');
+            Route::post('/payouts/{payoutId}/release', [PayPalPaymentController::class, 'release']);
+            Route::post('/payouts/{payoutId}/submit', [PayPalPaymentController::class, 'sendPayout']);
+            Route::post('/payouts/{payoutId}/refresh', [PayPalPaymentController::class, 'payoutStatus']);
+
             Route::get('/dashboard', [
                 AdminController::class,
                 'dashboard'

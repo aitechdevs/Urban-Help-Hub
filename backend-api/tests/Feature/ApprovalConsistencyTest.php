@@ -61,4 +61,36 @@ class ApprovalConsistencyTest extends TestCase
                 ->assertJsonFragment(['id' => $helper->id, 'status' => 'suspended']);
         }
     }
+    public function test_newly_eligible_helper_receives_matching_published_tasks_only_once(): void
+    {
+        [$helper, $service] = $this->helperWithService();
+        DB::table('users')->where('id', $helper->id)->update(['currency_code' => 'CAD']);
+        DB::table('profiles')->where('user_id', $helper->id)->update([
+            'country' => 'Canada', 'province' => 'ON', 'city' => 'Toronto',
+        ]);
+        $this->identity($helper);
+        $category = DB::table('helper_services')->where('id', $service)->value('service_category_id');
+        $customer = User::factory()->create(['role' => 'customer']);
+        $task = [
+            'customer_id' => $customer->id, 'service_category_id' => $category,
+            'title' => 'Toronto task', 'description' => 'A previously approved matching task.',
+            'country' => 'Canada', 'province' => 'Ontario', 'city' => 'toronto',
+            'status' => 'open', 'currency' => 'CAD', 'published_at' => now(),
+        ];
+        $matchingTask = DB::table('tasks')->insertGetId($task);
+        foreach ([['status' => 'pending_approval'], ['city' => 'Ottawa'], ['country' => 'US'],
+            ['province' => 'BC'], ['currency' => 'USD'], ['published_at' => null]] as $change) {
+            DB::table('tasks')->insert(array_replace($task, $change));
+        }
+
+        $this->putJson("/api/admin/helpers/{$helper->id}/verification", ['verification_status' => 'verified'])->assertOk();
+        $this->assertDatabaseCount('task_assignments', 0);
+        $serviceUrl = "/api/admin/helpers/{$helper->id}/services/{$service}";
+        $this->putJson($serviceUrl, ['approval_status' => 'approved'])->assertOk();
+        $this->putJson($serviceUrl, ['approval_status' => 'approved'])->assertOk();
+        $this->assertDatabaseHas('task_assignments', ['task_id' => $matchingTask, 'helper_id' => $helper->id, 'status' => 'offered']);
+        $this->assertDatabaseCount('task_assignments', 1);
+        $this->assertSame(1, DB::table('notifications')->where('type', 'new_opportunity')->count());
+    }
+
 }

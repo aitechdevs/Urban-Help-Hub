@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Support\InAppNotification;
+use App\Support\TaskMatching;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -81,8 +82,8 @@ class AdminController extends Controller
             ->count();
 
         $completedTasks = DB::table('tasks')->where('status', 'completed')->count();
-        $pendingPayments = DB::table('payments')->where('status', 'pending')->count();
-        $pendingPayouts = DB::table('payouts')->where('status', 'pending')->count();
+        $pendingPayments = DB::table('payments')->whereIn('status', ['pending', 'partially_paid', 'blocked'])->count();
+        $pendingPayouts = DB::table('payouts')->whereIn('status', ['pending', 'processing'])->count();
         $grossVolume = (float) DB::table('payments')->sum('settlement_total_amount');
         $platformRevenue = (float) DB::table('payments')->sum('settlement_platform_fee');
         $pendingTasks = DB::table('tasks')->where('status', 'pending_approval')->count();
@@ -117,8 +118,11 @@ class AdminController extends Controller
             ->join('users as customers', 'payments.customer_id', '=', 'customers.id')
             ->leftJoin('users as helpers', 'payments.helper_id', '=', 'helpers.id')
             ->leftJoin('payouts', 'payments.id', '=', 'payouts.payment_id')
+            ->leftJoin('paypal_payout_accounts', 'payments.helper_id', '=', 'paypal_payout_accounts.helper_id')
             ->select([
                 'payments.id',
+                'payments.helper_id',
+                'payments.commission_percent',
                 'payments.task_id',
                 'payments.currency',
                 'payments.subtotal_amount',
@@ -133,6 +137,14 @@ class AdminController extends Controller
                 'payments.settlement_helper_net',
                 'payments.status',
                 'payments.provider',
+                'payments.customer_confirmed_at',
+                'payments.provider_fees',
+                'payouts.provider_fee as payout_fee',
+                'payouts.processed_at as payout_submitted_at',
+                'payments.paypal_order_id',
+                'payments.paypal_capture_id',
+                'payments.paypal_dispute_status',
+                'payments.refunded_amount',
                 'payments.paid_at',
                 'payments.created_at',
                 'tasks.title as task_title',
@@ -142,11 +154,30 @@ class AdminController extends Controller
                 'payouts.net_amount as helper_net',
                 'payouts.status as payout_status',
                 'payouts.paid_at as payout_paid_at',
+                'payouts.approved_at as payout_approved_at',
+                'payouts.approved_by as payout_approved_by',
+                'payouts.paypal_transaction_status as payout_provider_status',
+                'payouts.paypal_recipient as payout_recipient_encrypted',
+                'paypal_payout_accounts.recipient as payout_account_encrypted',
             ])
             ->orderByDesc('payments.created_at')
             ->get();
 
-        return response()->json(['success' => true, 'data' => $payments]);
+        foreach ($payments as $payment) {
+            $payment->uses_installments = $payment->provider === 'paypal' && DB::table('payment_installments')
+                ->where('payment_id', $payment->id)->exists();
+            $encrypted = $payment->payout_account_encrypted;
+            $payment->payout_account_version = $encrypted ? app(\App\Services\PayPalPayoutService::class)->accountVersion((int) $payment->helper_id, $encrypted) : null;
+            try {
+                $recipient = $payment->payout_recipient_encrypted ?: $encrypted;
+                $payment->payout_recipient = $recipient ? \Illuminate\Support\Facades\Crypt::decryptString($recipient) : null;
+            } catch (\Throwable) {
+                $payment->payout_recipient = null;
+                $payment->payout_account_version = null;
+            }
+            unset($payment->payout_account_encrypted, $payment->payout_recipient_encrypted);
+        }
+        return response()->json(['success' => true, 'data' => $payments])->header('Cache-Control', 'no-store');
     }
 
     public function tasks(Request $request): JsonResponse
@@ -214,39 +245,8 @@ class AdminController extends Controller
                 return ['matched_helpers' => 0, 'message' => 'Task rejected. The Customer can see the review reason.'];
             }
 
-            $provinceAliases = $this->provinceAliases($task->country, $task->province);
-            $helpers = DB::table('helper_services')
-                ->join('users', 'helper_services.user_id', '=', 'users.id')
-                ->join('profiles', 'users.id', '=', 'profiles.user_id')
-                ->where('helper_services.service_category_id', $task->service_category_id)
-                ->where('helper_services.approval_status', 'approved')
-                ->where('helper_services.is_active', true)
-                ->where('users.role', 'helper')
-                ->where('users.status', 'active')
-                ->where('users.currency_code', $task->currency ?: 'CAD')
-                ->where('profiles.verification_status', 'verified')
-                ->whereRaw('LOWER(profiles.country) = LOWER(?)', [$task->country])
-                ->whereIn(DB::raw('LOWER(profiles.province)'), $provinceAliases)
-                ->whereRaw('LOWER(profiles.city) = LOWER(?)', [$task->city])
-                ->select(['users.id', 'helper_services.hourly_rate'])
-                ->get();
-
-            foreach ($helpers as $helper) {
-                DB::table('task_assignments')->updateOrInsert(
-                    ['task_id' => $taskId, 'helper_id' => $helper->id],
-                    ['status' => 'offered', 'agreed_hourly_rate' => $helper->hourly_rate, 'assigned_at' => $now, 'updated_at' => $now, 'created_at' => $now]
-                );
-                InAppNotification::send(
-                    (int) $helper->id,
-                    'new_opportunity',
-                    'New job opportunity',
-                    'A new “'.$task->title.'” task matches your services and location.',
-                    '/helper/dashboard',
-                    ['task_id' => $taskId]
-                );
-            }
-
             DB::table('tasks')->where('id', $taskId)->update(['status' => 'open', 'published_at' => $now, 'updated_at' => $now]);
+            $matchedHelpers = TaskMatching::offer($task, reoffer: true);
             $this->recordTaskStatus($taskId, $request->user()->id, 'pending_approval', 'open', 'Admin approved and published the task.');
             InAppNotification::send(
                 (int) $task->customer_id,
@@ -254,11 +254,11 @@ class AdminController extends Controller
                 'Your task is now live',
                 '“'.$task->title.'” was approved and published to eligible Helpers.',
                 '/dashboard',
-                ['task_id' => $taskId, 'matched_helpers' => $helpers->count()]
+                ['task_id' => $taskId, 'matched_helpers' => $matchedHelpers]
             );
             return [
-                'matched_helpers' => $helpers->count(),
-                'message' => $helpers->count() > 0
+                'matched_helpers' => $matchedHelpers,
+                'message' => $matchedHelpers > 0
                     ? 'Task approved and eligible Helpers were notified.'
                     : 'Task approved. No eligible Helper currently matches this location and service.',
             ];
@@ -279,22 +279,6 @@ class AdminController extends Controller
         ]);
     }
 
-    private function provinceAliases(?string $country, ?string $province): array
-    {
-        $normalized = strtolower(trim((string) $province));
-        if (strtolower(trim((string) $country)) !== 'canada') return [$normalized];
-        $canada = [
-            'ab' => 'alberta', 'bc' => 'british columbia', 'mb' => 'manitoba',
-            'nb' => 'new brunswick', 'nl' => 'newfoundland and labrador', 'ns' => 'nova scotia',
-            'nt' => 'northwest territories', 'nu' => 'nunavut', 'on' => 'ontario',
-            'pe' => 'prince edward island', 'qc' => 'quebec', 'sk' => 'saskatchewan', 'yt' => 'yukon',
-        ];
-        foreach ($canada as $code => $name) {
-            if ($normalized === $code || $normalized === $name) return [$code, $name];
-        }
-        return [$normalized];
-    }
-
     public function updatePaymentStatus(Request $request, int $paymentId): JsonResponse
     {
         $validated = $request->validate([
@@ -306,10 +290,10 @@ class AdminController extends Controller
             return response()->json(['success' => false, 'message' => 'Payment not found.'], 404);
         }
 
-        if ($payment->provider === 'stripe') {
+        if ($payment->provider !== 'manual') {
             return response()->json([
                 'success' => false,
-                'message' => 'Stripe payment status is managed by signed webhooks and cannot be changed manually.',
+                'message' => 'Payment status is verified by the provider.',
             ], 409);
         }
 
@@ -347,10 +331,11 @@ class AdminController extends Controller
             return response()->json(['success' => false, 'message' => 'Payout not found.'], 404);
         }
 
-        if ($payout->provider === 'stripe') {
+        if ($payout->provider !== 'manual' || $payout->paypal_sender_batch_id
+            || DB::table('payments')->where('id', $payout->payment_id)->where('provider', '!=', 'manual')->exists()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Stripe payout status is managed automatically and cannot be changed manually.',
+                'message' => 'Provider payouts require verified provider status.',
             ], 409);
         }
 
@@ -651,6 +636,10 @@ class AdminController extends Controller
                 ]);
         }
 
+        if ($validated['verification_status'] === 'verified') {
+            TaskMatching::offerOpenTasks($userId);
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Helper verification status updated.',
@@ -855,6 +844,10 @@ class AdminController extends Controller
                 'updated_at' => now(),
             ]);
 
+        if ($isActive) {
+            TaskMatching::offerOpenTasks($userId);
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Service approval status updated.',
@@ -939,6 +932,10 @@ class AdminController extends Controller
                 }
             }
         });
+
+        if ($validated['status'] === 'active') {
+            TaskMatching::offerOpenTasks($userId);
+        }
 
         return response()->json([
             'success' => true,

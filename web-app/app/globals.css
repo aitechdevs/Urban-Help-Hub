@@ -16,6 +16,26 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 button, a, input { transition: all 160ms ease; }
+
+:where(
+  a[href],
+  button,
+  summary,
+  select,
+  input:is([type="button"], [type="submit"], [type="reset"], [type="checkbox"], [type="radio"], [type="file"], [type="color"], [type="image"]),
+  [role="button"],
+  [role="link"],
+  [role="tab"],
+  label:has(input:is([type="checkbox"], [type="radio"]):enabled)
+):not(:disabled, [aria-disabled="true"]) {
+  cursor: pointer;
+}
+
+:where(button, input, select, textarea):disabled,
+:where(a, button, [role="button"], [role="link"], [role="tab"])[aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
 ::selection { background: rgba(47,173,69,.2); }
 
 .input {

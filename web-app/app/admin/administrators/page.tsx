@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { API_URL } from "@/lib/api";
 
@@ -107,6 +107,10 @@ function EditableAccount({
   const [currentPassword, setCurrentPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const errorRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    if (error) errorRef.current?.focus();
+  }, [error]);
   const [notice, setNotice] = useState("");
 
   async function save(event: FormEvent<HTMLFormElement>) {
@@ -160,7 +164,7 @@ function EditableAccount({
         Your current Super Admin password to approve this change
         <input id={`password-${account.id}`} type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} required autoComplete="current-password" className="mt-1 w-full rounded-xl border border-slate-300 p-3 font-normal" />
       </label>
-      {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+      {error && <p ref={errorRef} tabIndex={-1} role="alert" className="text-sm text-red-700">{error}</p>}
       {notice && <p role="status" className="text-sm text-green-700">{notice}</p>}
       <button type="submit" disabled={busy} className="w-full rounded-xl bg-[#082f5b] px-4 py-3 text-sm font-bold text-white disabled:opacity-50">
         {busy ? "Saving…" : "Save account permissions / status"}
@@ -176,6 +180,10 @@ export default function AdministratorManagement() {
   const [accounts, setAccounts] = useState<AdminAccount[]>([]);
   const [allowed, setAllowed] = useState<string[]>([]);
   const [error, setError] = useState("");
+  const errorRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    if (error) errorRef.current?.focus();
+  }, [error]);
   const [notice, setNotice] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -212,7 +220,10 @@ export default function AdministratorManagement() {
     } finally { setChecking(false); }
   }, [router]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void load(); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [load]);
 
   async function createAccount(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -271,7 +282,7 @@ export default function AdministratorManagement() {
           <button type="button" onClick={() => void load()} className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-bold">Refresh</button>
         </div>
         {notice && <p role="status" className="mb-4 rounded-xl bg-emerald-50 p-4 text-sm font-semibold text-emerald-800">{notice}</p>}
-        {error && <p role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</p>}
+        {error && <p ref={errorRef} tabIndex={-1} role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</p>}
         {checking ? <p>Verifying Super Admin access and Laravel endpoints…</p> : (
           <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">

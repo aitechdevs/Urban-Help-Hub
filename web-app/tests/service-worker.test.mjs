@@ -64,16 +64,16 @@ test("activation removes only obsolete caches owned by this application", async 
   assert.ok(recorded.claimed);
 });
 
-test("private routes, APIs, Stripe, new frontend chunks and non-GET requests bypass the worker", () => {
+test("private routes, APIs, PayPal, new frontend chunks and non-GET requests bypass the worker", () => {
   const { dispatch } = worker();
   for (const path of ["/dashboard", "/dashboard/", "/helper/dashboard", "/admin", "/admin/helpers/1",
-    "/login", "/logout", "/api/user", "/api/messages", "/api/stripe/webhook",
-    "/api/customer/payments/1/checkout", "/api/helper/stripe/onboarding-link",
-    "/_next/static/new-build.js", "/?payment=success", "/?stripe=return"]) {
+    "/login", "/logout", "/api/user", "/api/messages", "/api/paypal/webhook",
+    "/api/customer/payments/1/checkout", "/api/helper/paypal/payout-account",
+    "/_next/static/new-build.js", "/?payment=success", "/?paypal_payment=1"]) {
     assert.equal(dispatch(path), undefined, path);
   }
   assert.equal(dispatch("/", { method: "POST" }), undefined);
-  assert.equal(dispatch("/icons/icon-192.png", { origin: "https://checkout.stripe.com" }), undefined);
+  assert.equal(dispatch("/icons/icon-192.png", { origin: "https://www.paypal.com" }), undefined);
 });
 
 test("authorization, React server component and prefetch requests cannot enter the cache", () => {

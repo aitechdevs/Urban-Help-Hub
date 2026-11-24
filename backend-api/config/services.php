@@ -35,12 +35,19 @@ return [
         ],
     ],
 
-    'stripe' => [
-        'secret' => env('STRIPE_SECRET_KEY'),
-        'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
-        'api_version' => env('STRIPE_API_VERSION', '2024-06-20'),
-        'frontend_url' => rtrim(env('FRONTEND_URL', 'https://urbanhelphub.com'), '/'),
-        'platform_fee_percent' => (float) env('STRIPE_PLATFORM_FEE_PERCENT', 30),
+    'marketplace' => ['commission_percent' => 30],
+
+    'paypal' => [
+        'mode' => env('PAYPAL_MODE', 'sandbox'),
+        'currency' => env('PAYPAL_CURRENCY', 'CAD'),
+        'payouts_enabled' => (bool) env('PAYPAL_PAYOUTS_ENABLED', false),
+        'live_payouts_enabled' => (bool) env('PAYPAL_LIVE_PAYOUTS_ENABLED', false),
+        'live_direct_model_approved' => (bool) env('PAYPAL_LIVE_DIRECT_MODEL_APPROVED', false),
+        'client_id' => env('PAYPAL_CLIENT_ID'),
+        'client_secret' => env('PAYPAL_CLIENT_SECRET'),
+        'merchant_id' => env('PAYPAL_MERCHANT_ID'),
+        'webhook_id' => env('PAYPAL_WEBHOOK_ID'),
+        'frontend_url' => rtrim(env('FRONTEND_URL', 'http://localhost:3000'), '/'),
     ],
 
 ];

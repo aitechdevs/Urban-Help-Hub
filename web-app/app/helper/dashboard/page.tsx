@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import NotificationBell from "@/components/NotificationBell";
 import RegionSelector from "@/components/RegionSelector";
@@ -76,6 +76,8 @@ type OnboardingData = {
 type MarketplaceTask = {
   assignment_id: number;
   assignment_status: string;
+  agreed_fixed_price?: string | number | null;
+  commitment_verified?: boolean | null;
   agreed_hourly_rate?: string | number | null;
   task_id: number;
   title: string;
@@ -178,6 +180,10 @@ export default function HelperDashboardPage() {
   const [opportunities, setOpportunities] = useState<MarketplaceTask[]>([]);
   const [jobs, setJobs] = useState<MarketplaceTask[]>([]);
   const [marketplaceError, setMarketplaceError] = useState("");
+  const marketplaceErrorRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (marketplaceError) marketplaceErrorRef.current?.focus();
+  }, [marketplaceError]);
   const [busyOpportunity, setBusyOpportunity] = useState<number | null>(null);
   const [busyJob, setBusyJob] = useState<number | null>(null);
   function scrollToArea(id: string) {
@@ -344,8 +350,14 @@ export default function HelperDashboardPage() {
   }
 
   async function respondToOpportunity(assignmentId: number, decision: "accept" | "decline") {
-    const fixedPrice = decision === "accept" ? window.prompt("Propose your fixed total for the entire task in its listed currency. You will receive 60%; the customer must accept this quote. PayPal fees and taxes are covered by the platform.") : null;
-    if (decision === "accept" && (fixedPrice === null || !Number.isFinite(Number(fixedPrice)) || Number(fixedPrice) < 0.02)) return;
+    const fixedPrice = decision === "accept" ? window.prompt("Propose your fixed total for the entire task in its listed currency. The customer must accept this quote.") : null;
+    if (decision === "accept") {
+      if (fixedPrice === null) return;
+      if (!/^\d+(?:\.\d{1,2})?$/.test(fixedPrice.trim()) || Number(fixedPrice) < 0.02 || Number(fixedPrice) > 99999999.99) {
+        setMarketplaceError("Enter a fixed quote between 0.02 and 99,999,999.99 with up to two decimal places.");
+        return;
+      }
+    }
     if (decision === "decline" && !window.confirm("Decline this opportunity?")) return;
     const token = getToken();
     if (!token) return;
@@ -356,7 +368,7 @@ export default function HelperDashboardPage() {
       const response = await fetch(`${API_URL}/helper/opportunities/${assignmentId}/${decision}`, {
         method: "PUT",
         headers: { Accept: "application/json", "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify(decision === "accept" ? { agreed_fixed_price: fixedPrice } : {}),
+        body: JSON.stringify(decision === "accept" ? { agreed_fixed_price: fixedPrice?.trim() } : {}),
       });
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.message || `Unable to ${decision} this opportunity.`);
@@ -841,7 +853,7 @@ export default function HelperDashboardPage() {
         <div className="mt-8 grid gap-8 xl:grid-cols-[1.55fr_0.85fr]">
           <div className="space-y-8">
             {marketplaceError && (
-              <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">
+              <div ref={marketplaceErrorRef} tabIndex={-1} role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">
                 {marketplaceError}
               </div>
             )}
@@ -1042,11 +1054,13 @@ export default function HelperDashboardPage() {
                           <p className="mt-2 text-sm text-slate-500">{task.customer_name} · {[task.city, task.province].filter(Boolean).join(", ")}</p>
                           <p className="mt-1 text-sm text-slate-500">{task.scheduled_date} at {task.scheduled_start_time?.slice(0, 5)}</p>
                           {task.assignment_status !== "accepted" && task.address_line_1 && <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50 p-3 text-sm text-blue-900"><p className="font-bold">Service address</p><p className="mt-1">{[task.address_line_1, task.address_line_2, task.city, task.province, task.address_postal_code].filter(Boolean).join(", ")}</p></div>}
+                          {task.agreed_fixed_price && <p className="mt-2 text-sm font-semibold text-slate-700">Fixed quote: {formatMoney(task.agreed_fixed_price, task.currency || currentCurrency)}</p>}
+                          {task.assignment_status === "confirmed" && task.commitment_verified === false && <p className="mt-2 text-sm font-bold text-amber-700">Waiting for the customer’s PayPal commitment</p>}
                           {task.payment && <div className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-sm text-emerald-900"><p className="font-bold">Earnings: {formatMoney(task.payment.net_amount, task.payment.currency)}</p><p className="mt-1 text-xs">Gross {formatMoney(task.payment.gross_amount, task.payment.currency)} − platform deduction {formatMoney(task.payment.platform_deduction, task.payment.currency)} · {statusLabel(task.payment.status)}</p></div>}
                         </div>
                         <div className="flex flex-col items-end gap-2">
                           <span className={`rounded-full px-3 py-1 text-xs font-bold ${["confirmed", "completed"].includes(task.assignment_status) ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700"}`}>{statusLabel(task.assignment_status)}</span>
-                          {task.assignment_status === "confirmed" && <button type="button" disabled={busyJob === task.assignment_id || !canStartScheduledJob(task.scheduled_date)} onClick={() => jobAction(task.assignment_id, "start")} title={canStartScheduledJob(task.scheduled_date) ? "Start this job" : `Available on ${task.scheduled_date}`} className="rounded-xl bg-[#2fad45] px-4 py-2.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">{busyJob === task.assignment_id ? "Starting..." : canStartScheduledJob(task.scheduled_date) ? "Start job" : `Starts ${task.scheduled_date}`}</button>}
+                          {task.assignment_status === "confirmed" && <button type="button" disabled={busyJob === task.assignment_id || task.commitment_verified === false || !canStartScheduledJob(task.scheduled_date)} onClick={() => jobAction(task.assignment_id, "start")} title={canStartScheduledJob(task.scheduled_date) ? "Start this job" : `Available on ${task.scheduled_date}`} className="rounded-xl bg-[#2fad45] px-4 py-2.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">{busyJob === task.assignment_id ? "Starting..." : task.commitment_verified === false ? "Awaiting payment" : canStartScheduledJob(task.scheduled_date) ? "Start job" : `Starts ${task.scheduled_date}`}</button>}
                           {task.assignment_status === "in_progress" && <button type="button" disabled={busyJob === task.assignment_id} onClick={() => jobAction(task.assignment_id, "complete")} className="rounded-xl bg-[#082f5b] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">{busyJob === task.assignment_id ? "Updating..." : "Mark complete"}</button>}
                           {task.assignment_status === "awaiting_completion" && <span className="text-xs font-bold text-amber-700">Waiting for Customer approval</span>}
                           {task.assignment_status === "completed" && !task.my_review && <button type="button" disabled={busyJob === task.task_id} onClick={() => reviewCustomer(task.task_id)} className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-[#082f5b] disabled:opacity-50">Review Customer</button>}

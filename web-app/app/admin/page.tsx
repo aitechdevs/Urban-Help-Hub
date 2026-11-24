@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import NotificationBell from "@/components/NotificationBell";
 import RegionSelector from "@/components/RegionSelector";
@@ -56,6 +56,11 @@ type AdminTask = {
 };
 
 type PaymentRecord = {
+  uses_installments?: boolean;
+  payout_recipient?: string | null;
+  payout_account_version?: string | null;
+  payout_approved_at?: string | null;
+  paypal_dispute_status?: string | null;
   customer_confirmed_at?: string | null;
   payout_submitted_at?: string | null;
   provider_fees: number | string;
@@ -326,6 +331,15 @@ export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
+  const errorRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    if (error) errorRef.current?.focus();
+  }, [error]);
+  const [payoutFeedback, setPayoutFeedback] = useState<{ message: string; success: boolean } | null>(null);
+  const payoutFeedbackRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    if (payoutFeedback && !payoutFeedback.success) payoutFeedbackRef.current?.focus();
+  }, [payoutFeedback]);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<
     "all" | "pending" | "verified" | "active"
@@ -496,22 +510,27 @@ export default function AdminDashboardPage() {
     }
   }
 
-  async function paypalPayout(id: number, action: "release" | "submit" | "refresh", body?: object) {
+  async function paypalPayout(id: number, action: "release" | "submit" | "refresh" | "approve-paypal" | "reconcile-paypal", body?: object) {
     setBusyFinance(`payouts-${id}`);
+    setPayoutFeedback(null);
     try {
       const token = window.sessionStorage.getItem("urbanhelphub_token") || window.localStorage.getItem("urbanhelphub_token");
       const send = async (step: string, data?: object) => {
         const response = await fetch(`${API_URL}/admin/payouts/${id}/${step}`, {
           method: "POST", headers: { Accept: "application/json", "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify(data || {}),
         });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.message || "Unable to process PayPal payout. Refresh before retrying.");
+        const result = await response.json().catch(() => null);
+        if (!response.ok) {
+          const validationMessage = Object.values(result?.errors ?? {}).flat().find((value) => typeof value === "string");
+          throw new Error(validationMessage || result?.message || `PayPal payout action failed (HTTP ${response.status}).`);
+        }
+        return result?.message || "PayPal payout status updated.";
       };
-      await send(action, body);
-      if (action === "release") await send("submit");
-      window.location.reload();
+      const message = await send(action, body);
+      await loadAdminData(true);
+      setPayoutFeedback({ message, success: true });
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : "PayPal request failed. Refresh the page to check its status.");
+      setPayoutFeedback({ success: false, message: error instanceof Error ? error.message : "PayPal request failed. Refresh the page to check its status." });
     } finally { setBusyFinance(null); }
   }
 
@@ -613,7 +632,7 @@ export default function AdminDashboardPage() {
               Admin workspace unavailable
             </h1>
 
-            <p className="mt-3 leading-6 text-slate-600">
+            <p ref={errorRef} tabIndex={-1} role="alert" className="mt-3 leading-6 text-red-700">
               {error}
             </p>
 
@@ -1156,6 +1175,7 @@ export default function AdminDashboardPage() {
               </div>
 
               {payments.length === 0 ? <div className="px-6 py-14 text-center text-sm font-semibold text-slate-500">Completed-task payments will appear here.</div> : <div className="divide-y divide-slate-100">
+                {payoutFeedback && <p ref={payoutFeedbackRef} tabIndex={-1} role={payoutFeedback.success ? "status" : "alert"} className={`my-3 rounded-xl p-3 text-sm font-semibold ${payoutFeedback.success ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>{payoutFeedback.message}</p>}
                 {payments.map((payment) => <article key={payment.id} className="p-5 sm:p-7">
                   <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
                     <div className="min-w-0">
@@ -1164,9 +1184,20 @@ export default function AdminDashboardPage() {
                       <div className="mt-3 flex flex-wrap gap-4 text-sm font-semibold text-slate-600"><span>Customer total: {formatMoney(payment.total_amount, payment.currency)}</span><span>CAD total: {formatMoney(payment.settlement_total_amount, "CAD")}</span><span>CAD fee: {formatMoney(payment.settlement_platform_fee, "CAD")}</span><span>CAD Helper net: {formatMoney(payment.settlement_helper_net, "CAD")}</span><span>Payout: {statusText(payment.payout_status)}</span>{payment.provider === "paypal" && <span>CAD platform net after recorded fees and tax: {formatMoney(Number(payment.settlement_platform_fee) - (Number(payment.provider_fees || 0) + Number(payment.payout_fee || 0) + Number(payment.tax_amount || 0)) * Number(payment.settlement_exchange_rate), "CAD")}</span>}</div>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {payment.provider !== "paypal" && payment.provider !== "stripe" && payment.status === "pending" && <><button type="button" disabled={busyFinance === `payments-${payment.id}`} onClick={() => updateFinance("payments", payment.id, "paid")} className="rounded-xl bg-[#2fad45] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">Mark payment paid</button><button type="button" disabled={busyFinance === `payments-${payment.id}`} onClick={() => updateFinance("payments", payment.id, "failed")} className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-bold text-red-600 disabled:opacity-50">Mark failed</button></>}
-                      {payment.provider !== "paypal" && payment.provider !== "stripe" && payment.status === "paid" && payment.payout_id && payment.payout_status === "pending" && <button type="button" disabled={busyFinance === `payouts-${payment.payout_id}`} onClick={() => updateFinance("payouts", payment.payout_id!, "paid")} className="rounded-xl bg-[#082f5b] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">Release Helper payout</button>}
-                      {payment.provider === "paypal" && payment.payout_id && <PayPalRelease id={payment.payout_id} status={payment.payout_status || "pending"} eligible={payment.status === "paid" && !!payment.customer_confirmed_at} submitted={!!payment.payout_submitted_at} busy={busyFinance === `payouts-${payment.payout_id}`} onAction={paypalPayout} />}
+                      {payment.provider === "manual" && payment.status === "pending" && <><button type="button" disabled={busyFinance === `payments-${payment.id}`} onClick={() => updateFinance("payments", payment.id, "paid")} className="rounded-xl bg-[#2fad45] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">Mark payment paid</button><button type="button" disabled={busyFinance === `payments-${payment.id}`} onClick={() => updateFinance("payments", payment.id, "failed")} className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-bold text-red-600 disabled:opacity-50">Mark failed</button></>}
+                      {payment.provider === "manual" && payment.status === "paid" && payment.payout_id && payment.payout_status === "pending" && <button type="button" disabled={busyFinance === `payouts-${payment.payout_id}`} onClick={() => updateFinance("payouts", payment.payout_id!, "paid")} className="rounded-xl bg-[#082f5b] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">Release Helper payout</button>}
+                      {payment.provider === "paypal" && payment.uses_installments && payment.payout_id && <PayPalRelease id={payment.payout_id} status={payment.payout_status || "pending"} eligible={payment.status === "paid" && !!payment.customer_confirmed_at} submitted={!!payment.payout_submitted_at} busy={busyFinance === `payouts-${payment.payout_id}`} onAction={paypalPayout} />}
+                      {payment.provider === "paypal" && !payment.uses_installments && payment.payout_id && (
+                        payment.payout_approved_at ? (
+                          <button type="button" disabled={busyFinance === `payouts-${payment.payout_id}`} onClick={() => paypalPayout(payment.payout_id!, "reconcile-paypal")} className="rounded-xl border px-4 py-2 text-sm font-bold">Refresh historical PayPal payout</button>
+                        ) : payment.status === "paid" && payment.payout_status === "pending" && payment.paypal_dispute_status !== "OPEN" && payment.payout_account_version ? (
+                          <button type="button" disabled={busyFinance === `payouts-${payment.payout_id}`} onClick={() => {
+                            if (window.confirm(`Approve the historical payout to ${payment.payout_recipient || "the saved PayPal account"}?`)) {
+                              void paypalPayout(payment.payout_id!, "approve-paypal", { account_version: payment.payout_account_version });
+                            }
+                          }} className="rounded-xl border px-4 py-2 text-sm font-bold">Approve historical PayPal payout</button>
+                        ) : null
+                      )}
                       {payment.payout_status === "paid" && <span className="rounded-xl bg-green-50 px-4 py-2.5 text-sm font-bold text-green-700">✓ Settled</span>}
                     </div>
                   </div>

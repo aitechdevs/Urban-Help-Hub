@@ -24,6 +24,7 @@ use Laravel\Sanctum\HasApiTokens;
 #[Hidden([
     'password',
     'remember_token',
+    'paypal_email',
 ])]
 class User extends Authenticatable
 {

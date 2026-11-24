@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { API_URL } from "@/lib/api";
 import { formatMoney } from "@/lib/regions";
 
@@ -22,6 +22,11 @@ function headers() {
 export default function PayPalPayment({ payment }: { payment: PayPalPaymentSummary }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+
+  const errorRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    if (message) errorRef.current?.focus();
+  }, [message]);
 
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
@@ -45,8 +50,8 @@ export default function PayPalPayment({ payment }: { payment: PayPalPaymentSumma
         if (active) setBusy(false);
       }
     }
-    void capture();
-    return () => { active = false; };
+    const timer = window.setTimeout(() => { void capture(); }, 0);
+    return () => { active = false; window.clearTimeout(timer); };
   }, [payment.id]);
 
   async function pay(stage: string) {
@@ -75,36 +80,85 @@ export default function PayPalPayment({ payment }: { payment: PayPalPaymentSumma
       <p>{item.stage === "commitment" ? "Commitment" : "Final balance"}: {formatMoney(item.amount_minor / 100, payment.currency)} · {item.status}</p>
       {item.status === "pending" && !["blocked", "refunded", "failed"].includes(payment.status) && (item.stage === "commitment" || (depositPaid && payment.customer_confirmed_at)) && <button type="button" disabled={busy} onClick={() => pay(item.stage)} className="mt-2 rounded-xl bg-blue-900 px-4 py-2 font-bold text-white disabled:opacity-50">{busy ? "Processing…" : `Pay ${item.stage === "commitment" ? "commitment" : "balance"} with PayPal`}</button>}
     </div>)}</div>
-    {message && <p role="alert" className="mt-3 text-red-700">{message}</p>}
+    {message && <p ref={errorRef} tabIndex={-1} role="alert" className="mt-3 text-red-700">{message}</p>}
   </div>;
 }
 
 export function PayPalAccount() {
+  const [accountEmail, setAccountEmail] = useState<string | null>();
+  const [editing, setEditing] = useState(false);
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
+  const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
+  const messageRef = useRef<HTMLParagraphElement>(null);
   useEffect(() => {
-    fetch(`${API_URL}/helper/paypal`, { headers: headers() })
+    if (message && !saved) messageRef.current?.focus();
+  }, [message, saved]);
+
+  useEffect(() => {
+    fetch(`${API_URL}/helper/paypal/payout-account`, { headers: headers(), cache: "no-store" })
       .then(async (response) => {
         const result = await response.json();
         if (!response.ok) throw new Error(result.message || "Unable to load PayPal payout settings.");
-        setEmail(result.data.paypal_email || "");
+        setAccountEmail(result.data.email || null);
+        setEmail(result.data.email || "");
       }).catch((error) => setMessage(error instanceof Error ? error.message : "Unable to load settings."));
   }, []);
-  return <form className="rounded-3xl border border-slate-200 bg-white p-6" onSubmit={async (event) => {
-    event.preventDefault(); setBusy(true); setMessage("");
-    try {
-      const response = await fetch(`${API_URL}/helper/paypal`, { method: "PUT", headers: headers(), body: JSON.stringify({ paypal_email: email }) });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.message || "Unable to save PayPal email.");
-      setMessage("PayPal payout email saved. Check it carefully before your first payout.");
-    } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to save."); }
-    finally { setBusy(false); }
-  }}>
+
+  return <section className="rounded-3xl border border-slate-200 bg-white p-6">
     <h2 className="font-bold text-[#082f5b]">PayPal payouts</h2>
     <p className="mt-2 text-sm text-slate-600">You receive 60% of the agreed total. The platform covers PayPal fees and taxes. Your full earnings remain held until the customer confirms completion, pays the balance and an admin releases them.</p>
-    <label className="mt-3 block text-sm font-semibold">Your PayPal account email<input type="email" required maxLength={254} value={email} onChange={(event) => setEmail(event.target.value)} className="mt-2 block w-full rounded-xl border border-slate-300 p-3" /></label>
-    <button disabled={busy} className="mt-3 rounded-xl bg-[#082f5b] px-4 py-2 font-bold text-white disabled:opacity-50">{busy ? "Saving…" : "Save PayPal email"}</button>
-    {message && <p role="status" className="mt-2 text-sm">{message}</p>}
-  </form>;
+    {accountEmail === undefined && !message && <p role="status" className="mt-3 text-sm text-slate-600">Loading payout account…</p>}
+    {accountEmail && !editing && <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <p className="text-sm font-semibold text-emerald-700">PayPal payout account saved</p>
+        <p className="break-all text-sm text-slate-700">{accountEmail}</p>
+      </div>
+      <button type="button" className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-[#082f5b]" onClick={() => {
+        setEmail(accountEmail);
+        setMessage("");
+        setEditing(true);
+      }}>Change PayPal email</button>
+    </div>}
+    {(accountEmail === null || editing) && <form onSubmit={async (event) => {
+      event.preventDefault();
+      if (busy || (accountEmail && email.trim().toLowerCase() === accountEmail.toLowerCase())) return;
+      setBusy(true);
+      setSaved(false);
+      setMessage("");
+      try {
+        const normalizedEmail = email.trim().toLowerCase();
+        const response = await fetch(`${API_URL}/helper/paypal/payout-account`, {
+          method: "PUT", headers: headers(), body: JSON.stringify({ email: normalizedEmail, password }),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message || "Unable to save PayPal email.");
+        setAccountEmail(normalizedEmail);
+        setPassword("");
+        setEditing(false);
+        setSaved(true);
+        setMessage("PayPal payout email saved.");
+      } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to save PayPal email."); }
+      finally { setBusy(false); }
+    }}>
+      <label className="mt-3 block text-sm font-semibold">Your PayPal account email
+        <input type="email" required maxLength={254} value={email} onChange={(event) => setEmail(event.target.value)} className="mt-2 block w-full rounded-xl border border-slate-300 p-3" />
+      </label>
+      <label className="mt-3 block text-sm font-semibold">Current Urban Help Hub password
+        <input type="password" autoComplete="current-password" required maxLength={1024} value={password} onChange={(event) => setPassword(event.target.value)} className="mt-2 block w-full rounded-xl border border-slate-300 p-3" />
+      </label>
+      <p className="mt-2 text-sm text-slate-600">Confirm your password when setting up or changing where your earnings are sent.</p>
+      <div className="mt-3 flex flex-wrap gap-3">
+        <button disabled={busy || email.trim().toLowerCase() === accountEmail?.toLowerCase()} className="rounded-xl bg-[#082f5b] px-4 py-2 font-bold text-white disabled:opacity-50">{busy ? "Saving…" : "Save PayPal email"}</button>
+        {editing && <button type="button" disabled={busy} className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold" onClick={() => {
+          setPassword("");
+          setMessage("");
+          setEditing(false);
+        }}>Cancel</button>}
+      </div>
+    </form>}
+    {message && <p ref={messageRef} tabIndex={-1} role={saved ? "status" : "alert"} className={`mt-2 text-sm ${saved ? "text-emerald-700" : "text-red-700"}`}>{message}</p>}
+  </section>;
 }

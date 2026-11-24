@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\TaskPayments;
 use App\Support\InAppNotification;
+use App\Support\TaskMatching;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -53,6 +55,7 @@ class MarketplaceController extends Controller
                     'task_assignments.id as assignment_id',
                     'task_assignments.status',
                     'task_assignments.agreed_hourly_rate',
+                    'task_assignments.agreed_fixed_price',
                     'task_assignments.accepted_at',
                     'task_assignments.started_at',
                     'task_assignments.completed_at',
@@ -66,6 +69,9 @@ class MarketplaceController extends Controller
             $task->payment = DB::table('payments')
                 ->where('task_id', $task->id)
                 ->select([
+                    'id',
+                    'provider',
+                    'customer_confirmed_at',
                     'currency',
                     'subtotal_amount',
                     'platform_fee',
@@ -73,6 +79,14 @@ class MarketplaceController extends Controller
                     'status',
                 ])
                 ->first();
+
+            if ($task->payment?->provider === 'paypal') {
+                $task->payment->installments = DB::table('payment_installments')
+                    ->where('payment_id', $task->payment->id)->get(['stage', 'amount_minor', 'status']);
+            }
+            $task->can_edit = !$task->payment && in_array($task->status, [
+                'draft', 'pending_approval', 'rejected', 'open', 'awaiting_confirmation', 'scheduled',
+            ], true);
 
             $task->my_review = DB::table('reviews')
                 ->where('task_id', $task->id)
@@ -216,7 +230,7 @@ class MarketplaceController extends Controller
             if (!$task || (int) $task->customer_id !== (int) $user->id) {
                 return ['error' => 'Task not found.', 'status' => 404];
             }
-            if (!in_array($task->status, ['draft', 'pending_approval', 'open', 'awaiting_confirmation', 'scheduled'], true)
+            if (!in_array($task->status, ['draft', 'pending_approval', 'rejected', 'open', 'awaiting_confirmation', 'scheduled'], true)
                 || DB::table('task_assignments')->where('task_id', $taskId)->whereIn('status', ['in_progress', 'awaiting_completion', 'completed'])->exists()
                 || DB::table('payments')->where('task_id', $taskId)->exists()) {
                 return ['error' => 'This task can no longer be edited. Work has started or payment is recorded.', 'status' => 409];
@@ -295,6 +309,10 @@ class MarketplaceController extends Controller
                 return ['error' => 'That Helper is not awaiting confirmation for this task.', 'status' => 422];
             }
 
+            if (!TaskMatching::helperIsEligible($task, (int) $assignment->helper_id)) {
+                return ['error' => 'That Helper no longer meets the eligibility requirements for this task.', 'status' => 409];
+            }
+            app(TaskPayments::class)->create($task, $assignment);
             $now = now();
             DB::table('task_assignments')->where('id', $assignment->id)->update([
                 'status' => 'confirmed',
@@ -336,7 +354,7 @@ class MarketplaceController extends Controller
             return response()->json(['success' => false, 'message' => $outcome['error']], $outcome['status']);
         }
 
-        return response()->json(['success' => true, 'message' => 'Helper confirmed. Your task is now scheduled.']);
+        return response()->json(['success' => true, 'message' => 'Quotation accepted. Pay the PayPal commitment before work starts.']);
     }
 
     public function helperOpportunities(Request $request): JsonResponse
@@ -393,14 +411,27 @@ class MarketplaceController extends Controller
                 return ['error' => 'The Helper completion record is incomplete.', 'status' => 422];
             }
 
+            $paypal = DB::table('payments')->where('task_id', $taskId)->where('provider', 'paypal')
+                ->whereExists(fn ($query) => $query->from('payment_installments')->whereColumn('payment_installments.payment_id', 'payments.id'))
+                ->lockForUpdate()->first();
+            if ($paypal && !app(TaskPayments::class)->commitmentVerified($paypal)) {
+                return ['error' => 'The PayPal commitment payment must be verified before confirming completion.', 'status' => 409];
+            }
+
             $now = now();
+            if ($paypal) {
+                DB::table('payments')->where('id', $paypal->id)->update(['customer_confirmed_at' => $now, 'updated_at' => $now]);
+            }
+
             $minutes = max(
                 15,
                 Carbon::parse($assignment->started_at)->diffInMinutes(Carbon::parse($assignment->completed_at))
             );
             $hours = $minutes / 60;
-            $subtotal = round($hours * (float) ($assignment->agreed_hourly_rate ?? 0), 2);
-            $feePercent = max(0, min(100, (float) config('services.stripe.platform_fee_percent', 30)));
+            $subtotal = $assignment->agreed_fixed_price !== null
+                ? (float) $assignment->agreed_fixed_price
+                : round($hours * (float) ($assignment->agreed_hourly_rate ?? 0), 2);
+            $feePercent = max(0, min(100, (float) config('services.marketplace.commission_percent', 30)));
             $platformFee = round($subtotal * ($feePercent / 100), 2);
             $helperNet = round($subtotal - $platformFee, 2);
             $transactionCurrency = $task->currency ?: 'CAD';
@@ -425,7 +456,8 @@ class MarketplaceController extends Controller
                     'task_id' => $taskId,
                     'customer_id' => $user->id,
                     'helper_id' => $assignment->helper_id,
-                    'provider' => 'stripe',
+                    'provider' => 'paypal',
+                    'commission_percent' => $feePercent,
                     'currency' => $transactionCurrency,
                     'settlement_currency' => 'CAD',
                     'settlement_exchange_rate' => $settlementRate,
@@ -449,7 +481,7 @@ class MarketplaceController extends Controller
                     'payment_id' => $paymentId,
                     'task_id' => $taskId,
                     'helper_id' => $assignment->helper_id,
-                    'provider' => 'stripe',
+                    'provider' => 'paypal',
                     'currency' => $task->currency ?: 'CAD',
                     'gross_amount' => $subtotal,
                     'platform_deduction' => $platformFee,
@@ -474,7 +506,7 @@ class MarketplaceController extends Controller
                 (int) $assignment->helper_id,
                 'completion_confirmed',
                 'Job completion approved',
-                'The Customer approved completion of “'.$task->title.'”. Your payout is being processed.',
+                $paypal ? 'The Customer approved completion. Earnings remain held until the balance is paid and an administrator approves release.' : 'The Customer approved completion of “'.$task->title.'”. Your payout is being processed.',
                 '/helper/dashboard',
                 ['task_id' => $taskId, 'payment_id' => $paymentId]
             );
@@ -488,9 +520,10 @@ class MarketplaceController extends Controller
 
             return [
                 'payment_id' => $paymentId,
-                'subtotal' => $subtotal,
-                'platform_fee' => $platformFee,
-                'helper_net' => $helperNet,
+                'uses_installments' => (bool) $paypal,
+                'subtotal' => $paypal->subtotal_amount ?? $subtotal,
+                'platform_fee' => $paypal->platform_fee ?? $platformFee,
+                'helper_net' => $paypal ? TaskPayments::money(TaskPayments::minor($paypal->subtotal_amount) - TaskPayments::minor($paypal->platform_fee)) : $helperNet,
             ];
         });
 
@@ -500,7 +533,9 @@ class MarketplaceController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Completion confirmed. Payment is now pending processing.',
+            'message' => $outcome['uses_installments']
+                ? 'Completion confirmed. You can now pay the remaining PayPal balance.'
+                : 'Completion confirmed. Payment is now pending processing.',
             'data' => $outcome,
         ]);
     }
@@ -583,7 +618,14 @@ class MarketplaceController extends Controller
             return $this->forbidden('This action is only available to Helper accounts.');
         }
 
-        $outcome = DB::transaction(function () use ($user, $assignmentId, $decision) {
+        $quote = $decision === 'accepted'
+            ? $request->validate(['agreed_fixed_price' => ['required', 'numeric', 'decimal:0,2', 'min:0.02', 'max:99999999.99']])['agreed_fixed_price']
+            : null;
+
+        $outcome = DB::transaction(function () use ($user, $assignmentId, $decision, $quote) {
+            $taskId = DB::table('task_assignments')->where('id', $assignmentId)
+                ->where('helper_id', $user->id)->value('task_id');
+            $task = $taskId ? DB::table('tasks')->where('id', $taskId)->lockForUpdate()->first() : null;
             $assignment = DB::table('task_assignments')
                 ->where('id', $assignmentId)
                 ->where('helper_id', $user->id)
@@ -598,15 +640,19 @@ class MarketplaceController extends Controller
                 return ['error' => 'This opportunity has already been answered.', 'status' => 409];
             }
 
-            $task = DB::table('tasks')->where('id', $assignment->task_id)->lockForUpdate()->first();
 
             if (!$task || $task->status !== 'open') {
                 return ['error' => 'This task is no longer accepting responses.', 'status' => 409];
             }
 
+            if ($decision === 'accepted' && !TaskMatching::helperIsEligible($task, $user->id)) {
+                return ['error' => 'You no longer meet the eligibility requirements for this task.', 'status' => 409];
+            }
+
             $now = now();
             DB::table('task_assignments')->where('id', $assignmentId)->update([
                 'status' => $decision,
+                'agreed_fixed_price' => $quote,
                 'accepted_at' => $decision === 'accepted' ? $now : null,
                 'updated_at' => $now,
             ]);
@@ -660,6 +706,9 @@ class MarketplaceController extends Controller
         }
 
         $outcome = DB::transaction(function () use ($user, $assignmentId, $action) {
+            $taskId = DB::table('task_assignments')->where('id', $assignmentId)
+                ->where('helper_id', $user->id)->value('task_id');
+            $task = $taskId ? DB::table('tasks')->where('id', $taskId)->lockForUpdate()->first() : null;
             $assignment = DB::table('task_assignments')
                 ->where('id', $assignmentId)
                 ->where('helper_id', $user->id)
@@ -670,12 +719,17 @@ class MarketplaceController extends Controller
                 return ['error' => 'Job not found.', 'status' => 404];
             }
 
-            $task = DB::table('tasks')->where('id', $assignment->task_id)->lockForUpdate()->first();
             $now = now();
 
             if ($action === 'start') {
                 if ($assignment->status !== 'confirmed' || !$task || $task->status !== 'scheduled') {
                     return ['error' => 'Only a confirmed, scheduled job can be started.', 'status' => 409];
+                }
+                $paypal = DB::table('payments')->where('task_id', $task->id)->where('provider', 'paypal')
+                    ->whereExists(fn ($query) => $query->from('payment_installments')->whereColumn('payment_installments.payment_id', 'payments.id'))
+                    ->lockForUpdate()->first();
+                if (($paypal || $assignment->agreed_fixed_price !== null) && (!$paypal || !app(TaskPayments::class)->commitmentVerified($paypal))) {
+                    return ['error' => 'The Customer must pay the PayPal commitment before work starts.', 'status' => 409];
                 }
                 if (Carbon::parse($task->scheduled_date)->isAfter(now()->startOfDay())) {
                     return ['error' => 'This job cannot be started before its scheduled date.', 'status' => 422];
@@ -746,6 +800,7 @@ class MarketplaceController extends Controller
                 'task_assignments.id as assignment_id',
                 'task_assignments.status as assignment_status',
                 'task_assignments.agreed_hourly_rate',
+                'task_assignments.agreed_fixed_price',
                 'task_assignments.started_at',
                 'task_assignments.completed_at',
                 'tasks.id as task_id',
@@ -775,6 +830,13 @@ class MarketplaceController extends Controller
             ->get();
 
         foreach ($items as $item) {
+            $payPalPayment = DB::table('payments')->where('task_id', $item->task_id)
+                ->where('helper_id', $user->id)->where('provider', 'paypal')
+                ->whereExists(fn ($query) => $query->from('payment_installments')->whereColumn('payment_installments.payment_id', 'payments.id'))
+                ->first();
+            $item->commitment_verified = $payPalPayment
+                ? app(TaskPayments::class)->commitmentVerified($payPalPayment)
+                : ($item->agreed_fixed_price !== null ? false : null);
             $item->payment = DB::table('payouts')
                 ->where('task_id', $item->task_id)
                 ->where('helper_id', $user->id)

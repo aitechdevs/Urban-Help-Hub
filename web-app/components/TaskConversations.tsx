@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { API_URL } from "@/lib/api";
 
@@ -51,6 +51,10 @@ export default function TaskConversations({ role }: { role: "customer" | "helper
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const errorRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    if (error) errorRef.current?.focus();
+  }, [error]);
   const dashboard = role === "customer" ? "/dashboard" : "/helper/dashboard";
 
   const refresh = useCallback(async () => {
@@ -95,7 +99,10 @@ export default function TaskConversations({ role }: { role: "customer" | "helper
     } finally { setLoading(false); }
   }, [role, router]);
 
-  useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void refresh(); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [refresh]);
   const thread = useMemo(() => threads.find((t) => t.task_id === selected) || null, [threads, selected]);
   const locked = thread ? isLocked(thread, taskStates[thread.task_id]) : true;
 
@@ -130,7 +137,7 @@ export default function TaskConversations({ role }: { role: "customer" | "helper
           <div><p className="text-xs font-bold uppercase tracking-wider text-emerald-700">{role} workspace</p><h1 className="mt-1 text-3xl font-bold">Messages</h1><p className="mt-1 text-sm text-slate-500">Only participants in a confirmed task can access its conversation.</p></div>
           <button type="button" onClick={() => void refresh()} className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-bold hover:bg-slate-50">Refresh</button>
         </div>
-        {error && <p role="alert" className="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</p>}
+        {error && <p ref={errorRef} tabIndex={-1} role="alert" className="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</p>}
         {loading ? <p className="rounded-xl bg-white p-6">Loading conversations…</p> : !threads.length ? (
           <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center"><h2 className="text-xl font-bold">No conversations yet</h2><p className="mt-2 text-sm text-slate-500">A conversation becomes available after a customer confirms a Helper for a task.</p></div>
         ) : (
