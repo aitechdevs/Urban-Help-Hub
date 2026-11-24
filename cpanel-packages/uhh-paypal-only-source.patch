@@ -228,6 +228,50 @@ index 0000000..ebdad03
 +        return $failed ? self::FAILURE : self::SUCCESS;
 +    }
 +}
+diff --git a/backend-api/app/Console/Commands/ShowPayPalPayoutAudit.php b/backend-api/app/Console/Commands/ShowPayPalPayoutAudit.php
+new file mode 100644
+index 0000000..96ace95
+--- /dev/null
++++ b/backend-api/app/Console/Commands/ShowPayPalPayoutAudit.php
+@@ -0,0 +1,38 @@
++<?php
++
++namespace App\Console\Commands;
++
++use Illuminate\Console\Command;
++use Illuminate\Support\Facades\DB;
++
++class ShowPayPalPayoutAudit extends Command
++{
++    protected $signature = 'paypal:payout-audit {payout : Internal payout ID}';
++
++    protected $description = 'Show administrator actions for a PayPal payout';
++
++    public function handle(): int
++    {
++        $payoutId = (string) $this->argument('payout');
++        if (!ctype_digit($payoutId) || (int) $payoutId < 1) {
++            $this->error('Enter a positive internal payout ID.');
++
++            return self::INVALID;
++        }
++
++        $events = DB::table('paypal_payout_audit_events')
++            ->where('payout_id', $payoutId)
++            ->orderBy('id')
++            ->get(['created_at', 'actor_user_id', 'actor_role', 'action']);
++
++        if ($events->isEmpty()) {
++            $this->info('No administrator actions have been recorded for this payout.');
++
++            return self::SUCCESS;
++        }
++
++        $this->table(['Time', 'Administrator user ID', 'Role', 'Action'], $events->map(fn ($event) => (array) $event));
++
++        return self::SUCCESS;
++    }
++}
 diff --git a/backend-api/app/Http/Controllers/AdminController.php b/backend-api/app/Http/Controllers/AdminController.php
 index 119644d..7bd776f 100644
 --- a/backend-api/app/Http/Controllers/AdminController.php
@@ -1042,13 +1086,15 @@ index 0000000..5afdb23
 +}
 diff --git a/backend-api/app/Http/Controllers/PayPalPaymentController.php b/backend-api/app/Http/Controllers/PayPalPaymentController.php
 new file mode 100644
-index 0000000..c8d2375
+index 0000000..cb8e0b5
 --- /dev/null
 +++ b/backend-api/app/Http/Controllers/PayPalPaymentController.php
-@@ -0,0 +1,365 @@
+@@ -0,0 +1,396 @@
 +<?php
 +
 +namespace App\Http\Controllers;
++
++use App\Models\User;
 +
 +use App\Services\PayPalClient;
 +use App\Services\TaskPayments;
@@ -1196,13 +1242,13 @@ index 0000000..c8d2375
 +
 +    public function release(Request $request, int $payoutId): JsonResponse
 +    {
-+        abort_unless($request->user()->role === 'admin' && $request->user()->status === 'active', 403);
++        $administrator = $this->payoutAdministrator($request);
 +        $data = $request->validate([
 +            'customer_verified' => ['required', 'accepted'],
 +            'tax_amount' => ['required', 'numeric', 'min:0', 'max:99999999', 'decimal:0,2'],
 +        ]);
 +
-+        return DB::transaction(function () use ($request, $payoutId, $data) {
++        return DB::transaction(function () use ($administrator, $payoutId, $data) {
 +            $initial = DB::table('payouts')->where('id', $payoutId)->first();
 +            abort_unless($initial, 404);
 +            $payment = DB::table('payments')->where('id', $initial->payment_id)->lockForUpdate()->first();
@@ -1219,8 +1265,10 @@ index 0000000..c8d2375
 +            DB::table('payments')->where('id', $payment->id)->update(['tax_amount' => $data['tax_amount'], 'updated_at' => now()]);
 +            DB::table('payouts')->where('id', $payoutId)->update([
 +                'status' => 'processing', 'paypal_mode' => $payment->paypal_mode, 'paypal_recipient' => Crypt::encryptString(Crypt::decryptString($recipient)),
-+                'released_by' => $request->user()->id, 'released_at' => now(), 'updated_at' => now(),
++                'released_by' => $administrator->id, 'released_at' => now(), 'updated_at' => now(),
 +            ]);
++
++            $this->auditPayout($administrator, $payoutId, 'released');
 +
 +            return response()->json(['success' => true, 'message' => 'Release authorized. Submit the PayPal payout.', 'data' => ['payout_id' => $payoutId]]);
 +        });
@@ -1228,11 +1276,11 @@ index 0000000..c8d2375
 +
 +    public function sendPayout(Request $request, int $payoutId): JsonResponse
 +    {
-+        abort_unless($request->user()->role === 'admin' && $request->user()->status === 'active', 403);
++        $administrator = $this->payoutAdministrator($request);
 +        abort_unless(config('services.paypal.payouts_enabled'), 409, 'PayPal Payouts is disabled.');
 +        abort_if(config('services.paypal.mode') === 'live' && !config('services.paypal.live_payouts_enabled'), 409, 'Live payouts are disabled.');
 +        // Commit submission intent before contacting PayPal: an ambiguous response must never cause a second payout.
-+        $payout = DB::transaction(function () use ($payoutId) {
++        $payout = DB::transaction(function () use ($administrator, $payoutId) {
 +            $initial = DB::table('payouts')->where('id', $payoutId)->first();
 +            abort_unless($initial, 404);
 +            $payment = DB::table('payments')->where('id', $initial->payment_id)->lockForUpdate()->first();
@@ -1253,6 +1301,7 @@ index 0000000..c8d2375
 +                    409, 'A customer payment is no longer completed. Reconcile it before releasing earnings.');
 +            }
 +            DB::table('payouts')->where('id', $payoutId)->update(['processed_at' => now()]);
++            $this->auditPayout($administrator, $payoutId, 'submission_started');
 +
 +            return $row;
 +        });
@@ -1266,22 +1315,48 @@ index 0000000..c8d2375
 +        ], 'urban-payout-'.$payout->id);
 +        $batchId = $result['batch_header']['payout_batch_id'] ?? null;
 +        abort_unless($batchId, 502, 'Submission outcome needs PayPal reconciliation. Do not resubmit.');
-+        DB::table('payouts')->where('id', $payoutId)->update(['provider_payout_id' => $batchId, 'updated_at' => now()]);
++        DB::transaction(function () use ($administrator, $payoutId, $batchId): void {
++            DB::table('payouts')->where('id', $payoutId)->update(['provider_payout_id' => $batchId, 'updated_at' => now()]);
++            $this->auditPayout($administrator, $payoutId, 'submitted');
++        });
 +
 +        return response()->json(['success' => true, 'message' => 'PayPal payout submitted. Payment is not marked paid until PayPal confirms success.']);
 +    }
 +
 +    public function payoutStatus(Request $request, int $payoutId): JsonResponse
 +    {
-+        abort_unless($request->user()->role === 'admin' && $request->user()->status === 'active', 403);
++        $administrator = $this->payoutAdministrator($request);
 +        $payout = DB::table('payouts')->where('id', $payoutId)->where('provider', 'paypal')->first();
 +        abort_unless($payout && $payout->provider_payout_id, 409, 'No PayPal batch recorded. Await webhook reconciliation or check the PayPal dashboard; do not resubmit.');
 +        $batch = $this->paypal->request('GET', 'v1/payments/payouts/'.$payout->provider_payout_id.'?page_size=1000');
-+        foreach ($batch['items'] ?? [] as $item) {
-+            $this->recordPayout($item);
-+        }
++        DB::transaction(function () use ($administrator, $payoutId, $batch): void {
++            foreach ($batch['items'] ?? [] as $item) {
++                $this->recordPayout($item);
++            }
++            $this->auditPayout($administrator, $payoutId, 'refreshed');
++        });
 +
 +        return response()->json(['success' => true, 'message' => 'PayPal payout status refreshed.']);
++    }
++
++    private function payoutAdministrator(Request $request): User
++    {
++        $user = $request->user();
++        abort_unless($user && in_array($user->role, ['admin', 'super_admin'], true)
++            && $user->status === 'active', 403, 'An active administrator is required for PayPal payouts.');
++
++        return $user;
++    }
++
++    private function auditPayout(User $administrator, int $payoutId, string $action): void
++    {
++        DB::table('paypal_payout_audit_events')->insert([
++            'payout_id' => $payoutId,
++            'actor_user_id' => $administrator->id,
++            'actor_role' => $administrator->role,
++            'action' => $action,
++            'created_at' => now(),
++        ]);
 +    }
 +
 +    private function recordPayout(array $item): void
@@ -1835,6 +1910,35 @@ index e94c75b..0000000
 -        return (int) round((float) $amount * (in_array(strtoupper($currency), $zeroDecimal, true) ? 1 : 100));
 -    }
 -}
+diff --git a/backend-api/app/Http/Middleware/AdminMiddleware.php b/backend-api/app/Http/Middleware/AdminMiddleware.php
+index 9579b2f..af91c1f 100644
+--- a/backend-api/app/Http/Middleware/AdminMiddleware.php
++++ b/backend-api/app/Http/Middleware/AdminMiddleware.php
+@@ -2,6 +2,7 @@
+ 
+ namespace App\Http\Middleware;
+ 
++use App\Http\Controllers\PayPalPaymentController;
+ use Closure;
+ use Illuminate\Http\JsonResponse;
+ use Illuminate\Http\Request;
+@@ -25,7 +26,15 @@ public function handle(
+             ], 401);
+         }
+ 
+-        if ($user->role !== 'admin') {
++        $payoutActions = [
++            PayPalPaymentController::class.'@release',
++            PayPalPaymentController::class.'@sendPayout',
++            PayPalPaymentController::class.'@payoutStatus',
++        ];
++        $superAdminPayout = $user->role === 'super_admin'
++            && in_array($request->route()?->getActionName(), $payoutActions, true);
++
++        if ($user->role !== 'admin' && !$superAdminPayout) {
+             return response()->json([
+                 'success' => false,
+                 'message' => 'Administrator access is required.',
 diff --git a/backend-api/app/Models/User.php b/backend-api/app/Models/User.php
 index 35b3ba4..1044c53 100644
 --- a/backend-api/app/Models/User.php
@@ -2948,6 +3052,39 @@ index 0000000..75794b4
 +        // Keep encrypted recipient records on rollback.
 +    }
 +};
+diff --git a/backend-api/database/migrations/2026_11_24_000003_create_paypal_payout_audit_events.php b/backend-api/database/migrations/2026_11_24_000003_create_paypal_payout_audit_events.php
+new file mode 100644
+index 0000000..a4ca1bd
+--- /dev/null
++++ b/backend-api/database/migrations/2026_11_24_000003_create_paypal_payout_audit_events.php
+@@ -0,0 +1,27 @@
++<?php
++
++use Illuminate\Database\Migrations\Migration;
++use Illuminate\Database\Schema\Blueprint;
++use Illuminate\Support\Facades\Schema;
++
++return new class extends Migration
++{
++    public function up(): void
++    {
++        Schema::create('paypal_payout_audit_events', function (Blueprint $table) {
++            $table->id();
++            // Keep identifiers available even if an administrator or payout is removed later.
++            $table->unsignedBigInteger('payout_id');
++            $table->unsignedBigInteger('actor_user_id');
++            $table->string('actor_role', 20);
++            $table->string('action', 30);
++            $table->timestamp('created_at');
++            $table->index(['payout_id', 'id']);
++        });
++    }
++
++    public function down(): void
++    {
++        Schema::dropIfExists('paypal_payout_audit_events');
++    }
++};
 diff --git a/backend-api/routes/api.php b/backend-api/routes/api.php
 index 7f1f65e..15eb473 100644
 --- a/backend-api/routes/api.php
@@ -3407,10 +3544,10 @@ index 0000000..b2e3e06
 +}
 diff --git a/backend-api/tests/Feature/PayPalPaymentsTest.php b/backend-api/tests/Feature/PayPalPaymentsTest.php
 new file mode 100644
-index 0000000..641d3d5
+index 0000000..5f2ed72
 --- /dev/null
 +++ b/backend-api/tests/Feature/PayPalPaymentsTest.php
-@@ -0,0 +1,369 @@
+@@ -0,0 +1,400 @@
 +<?php
 +
 +namespace Tests\Feature;
@@ -3422,6 +3559,7 @@ index 0000000..641d3d5
 +use Illuminate\Support\Facades\DB;
 +use Illuminate\Support\Facades\Http;
 +use Laravel\Sanctum\Sanctum;
++use PHPUnit\Framework\Attributes\DataProvider;
 +use Tests\TestCase;
 +
 +class PayPalPaymentsTest extends TestCase
@@ -3554,7 +3692,16 @@ index 0000000..641d3d5
 +        $this->putJson('/api/customer/tasks/'.$this->taskId.'/confirm-completion')->assertOk();
 +    }
 +
-+    public function test_full_payment_flow_holds_sixty_percent_until_admin_release_and_paypal_success(): void
++    public static function payoutAdministratorRoles(): array
++    {
++        return [
++            'administrator' => ['admin'],
++            'super administrator' => ['super_admin'],
++        ];
++    }
++
++    #[DataProvider('payoutAdministratorRoles')]
++    public function test_full_payment_flow_holds_sixty_percent_until_admin_release_and_paypal_success(string $role): void
 +    {
 +        $paymentId = $this->confirmMatch();
 +        $this->putJson('/api/customer/tasks/'.$this->taskId.'/confirm', ['assignment_id' => $this->assignmentId])->assertConflict();
@@ -3571,9 +3718,10 @@ index 0000000..641d3d5
 +        $this->assertCount(2, DB::table('payment_installments')->where('payment_id', $paymentId)->distinct()->pluck('paypal_capture_id'));
 +        $this->assertDatabaseHas('payments', ['id' => $paymentId, 'status' => 'paid', 'provider_fees' => 4]);
 +        $payoutId = DB::table('payouts')->value('id');
-+        Sanctum::actingAs($this->admin);
++        $administrator = User::factory()->create(['role' => $role, 'status' => 'active']);
++        Sanctum::actingAs($administrator);
 +        $this->postJson('/api/admin/payouts/'.$payoutId.'/release', ['customer_verified' => true, 'tax_amount' => '12.00'])->assertOk();
-+        $this->assertDatabaseHas('payouts', ['id' => $payoutId, 'status' => 'processing', 'net_amount' => 60, 'released_by' => $this->admin->id]);
++        $this->assertDatabaseHas('payouts', ['id' => $payoutId, 'status' => 'processing', 'net_amount' => 60, 'released_by' => $administrator->id]);
 +        $encryptedRecipient = DB::table('payouts')->where('id', $payoutId)->value('paypal_recipient');
 +        $this->assertNotSame('helper@example.test', $encryptedRecipient);
 +        $this->assertSame('helper@example.test', Crypt::decryptString($encryptedRecipient));
@@ -3584,6 +3732,24 @@ index 0000000..641d3d5
 +        $this->assertDatabaseHas('payments', ['id' => $paymentId, 'tax_amount' => 12, 'platform_fee' => 40]);
 +        Http::assertSent(fn (Request $request) => str_ends_with($request->url(), '/v1/payments/payouts') && $request['items'][0]['amount']['value'] === '60.00');
 +        $this->postJson('/api/admin/payouts/'.$payoutId.'/submit')->assertConflict();
++        $events = DB::table('paypal_payout_audit_events')->where('payout_id', $payoutId)->orderBy('id')->get();
++        $this->assertSame(['released', 'submission_started', 'submitted', 'refreshed'], $events->pluck('action')->all());
++        $this->assertSame([$administrator->id], $events->pluck('actor_user_id')->unique()->values()->all());
++        $this->assertSame([$role], $events->pluck('actor_role')->unique()->values()->all());
++        $this->artisan('paypal:payout-audit', ['payout' => $payoutId])->assertSuccessful();
++    }
++
++    public function test_inactive_super_admin_and_helpers_cannot_act_on_payouts(): void
++    {
++        $inactive = User::factory()->create(['role' => 'super_admin', 'status' => 'suspended']);
++        foreach ([$inactive, $this->helper] as $actor) {
++            Sanctum::actingAs($actor);
++            foreach (['release', 'submit', 'refresh'] as $action) {
++                $this->postJson('/api/admin/payouts/1/'.$action)->assertForbidden();
++            }
++        }
++        $this->assertDatabaseCount('paypal_payout_audit_events', 0);
++        Http::assertNothingSent();
 +    }
 +
 +    public function test_installments_cannot_use_historical_checkout_or_payout_routes(): void
@@ -3714,6 +3880,8 @@ index 0000000..641d3d5
 +        $this->postJson('/api/admin/payouts/'.$payoutId.'/submit')->assertConflict();
 +
 +        $this->assertDatabaseHas('payouts', ['id' => $payoutId, 'status' => 'processing', 'provider_payout_id' => null, 'paid_at' => null]);
++        $this->assertSame(['released', 'submission_started'], DB::table('paypal_payout_audit_events')
++            ->where('payout_id', $payoutId)->orderBy('id')->pluck('action')->all());
 +    }
 +
 +    public function test_admin_attestation_and_tax_review_are_required_before_release(): void
