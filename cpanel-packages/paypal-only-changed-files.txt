@@ -1,4 +1,4 @@
- TRUEHOST_CPANEL_DEPLOYMENT.md                      | 124 +------
+ TRUEHOST_CPANEL_DEPLOYMENT.md                      | 124 +-----
  WORKSPACE-RECOVERY.md                              |  17 +
  backend-api/.env.example                           |  16 +-
  backend-api/.env.production.example                |  16 +-
@@ -7,28 +7,28 @@
  .../app/Http/Controllers/AdminController.php       | 113 +++---
  .../app/Http/Controllers/AuthController.php        |   6 +
  .../Controllers/CustomerTaskDetailsController.php  |   6 +-
- .../app/Http/Controllers/MarketplaceController.php |  96 ++++-
- .../app/Http/Controllers/PayPalController.php      | 300 +++++++++++++++
- .../Http/Controllers/PayPalPaymentController.php   | 396 ++++++++++++++++++++
+ .../app/Http/Controllers/MarketplaceController.php |  97 ++++-
+ .../app/Http/Controllers/PayPalController.php      | 300 ++++++++++++++
+ .../Http/Controllers/PayPalPaymentController.php   | 445 +++++++++++++++++++++
  .../Http/Controllers/PayPalPayoutController.php    |  73 ++++
  .../Http/Controllers/ServiceCategoryController.php |   3 +
  .../Http/Controllers/StripeConnectController.php   | 120 ------
- .../Http/Controllers/StripePaymentController.php   | 213 -----------
+ .../Http/Controllers/StripePaymentController.php   | 213 ----------
  .../app/Http/Middleware/AdminMiddleware.php        |  11 +-
  backend-api/app/Models/User.php                    |   1 +
- backend-api/app/Services/PayPalClient.php          |  43 +++
- backend-api/app/Services/PayPalPayoutService.php   | 243 +++++++++++++
+ backend-api/app/Services/PayPalClient.php          |  43 ++
+ backend-api/app/Services/PayPalPayoutService.php   | 243 +++++++++++
  backend-api/app/Services/PayPalService.php         | 180 +++++++++
  backend-api/app/Services/StripeClient.php          |  46 ---
  backend-api/app/Services/TaskPayments.php          |  80 ++++
  backend-api/app/Support/TaskMatching.php           | 120 ++++++
  backend-api/app/Support/TaskScheduleDate.php       |  56 +++
  backend-api/composer.json                          |   3 +-
- backend-api/composer.lock                          |  63 +---
+ backend-api/composer.lock                          |  63 +--
  backend-api/config/services.php                    |  19 +-
- ...6_11_03_211434_add_paypal_checkout_tracking.php |  41 +++
+ ...6_11_03_211434_add_paypal_checkout_tracking.php |  41 ++
  ...04_135453_add_admin_approved_paypal_payouts.php |  51 +++
- ...dd_paypal_installments_and_release_controls.php |  44 +++
+ ...dd_paypal_installments_and_release_controls.php |  44 ++
  ...2026_11_24_000001_encrypt_paypal_recipients.php |  31 ++
  ...1_24_000002_reuse_encrypted_paypal_accounts.php |  26 ++
  ...24_000003_create_paypal_payout_audit_events.php |  27 ++
@@ -36,17 +36,18 @@
  backend-api/routes/console.php                     |   3 +
  .../tests/Feature/ApprovalConsistencyTest.php      |  32 ++
  .../tests/Feature/CustomerTaskEditingTest.php      |  25 ++
- backend-api/tests/Feature/PayPalCheckoutTest.php   | 334 +++++++++++++++++
- backend-api/tests/Feature/PayPalPaymentsTest.php   | 402 +++++++++++++++++++++
- backend-api/tests/Feature/PayPalPayoutTest.php     | 339 +++++++++++++++++
+ backend-api/tests/Feature/PayPalCheckoutTest.php   | 334 ++++++++++++++++
+ backend-api/tests/Feature/PayPalPaymentsTest.php   | 441 ++++++++++++++++++++
+ backend-api/tests/Feature/PayPalPayoutTest.php     | 339 ++++++++++++++++
  web-app/app/admin/administrators/page.tsx          |  19 +-
  web-app/app/admin/page.tsx                         |  55 ++-
  web-app/app/dashboard/page.tsx                     |  30 +-
  web-app/app/globals.css                            |  20 +
  web-app/app/helper/dashboard/page.tsx              |  26 +-
  web-app/app/post-a-task/page.tsx                   |  94 ++++-
- web-app/components/PayPalPayment.tsx               |  94 ++++-
+ web-app/components/PayPalPayment.tsx               | 136 +++++--
+ web-app/components/PayPalRelease.tsx               |   2 +-
  web-app/components/TaskConversations.tsx           |  13 +-
  web-app/public/sw.js                               |   2 +-
  web-app/tests/service-worker.test.mjs              |  10 +-
- 51 files changed, 3458 insertions(+), 718 deletions(-)
+ 52 files changed, 3583 insertions(+), 726 deletions(-)
