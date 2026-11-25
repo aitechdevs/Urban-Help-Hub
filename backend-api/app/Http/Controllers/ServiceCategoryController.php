@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\TaskScheduleDate;
+
 use App\Models\ServiceCategory;
 use Illuminate\Http\JsonResponse;
 
@@ -18,6 +20,7 @@ class ServiceCategoryController extends Controller
         return response()->json([
             'success' => true,
             'data' => $categories,
+            'schedule_timezones' => TaskScheduleDate::timezones(),
         ]);
     }
 }

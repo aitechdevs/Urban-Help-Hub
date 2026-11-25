@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
@@ -41,6 +42,30 @@ class CustomerTaskEditingTest extends TestCase
             'status' => $status, 'currency' => 'CAD', 'created_at' => now(), 'updated_at' => now(),
         ]);
         return [$owner, $task, $payload];
+    }
+
+    public function test_task_creation_and_edits_follow_torontos_calendar_when_utc_changes_first(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-11-25 00:30:00', 'UTC'));
+        [$owner, $task, $payload] = $this->booking();
+        Sanctum::actingAs($owner);
+
+        $this->getJson('/api/service-categories')->assertOk()
+            ->assertJsonPath('schedule_timezones.canada.provinces.ontario', 'America/Toronto');
+        $payload['scheduled_date'] = '2026-11-24';
+        $this->postJson('/api/customer/tasks', $payload)->assertCreated();
+        $this->putJson("/api/customer/tasks/{$task}/details", $payload)->assertOk();
+        $this->putJson("/api/customer/tasks/{$task}", $payload)->assertOk();
+
+        $payload['province'] = 'ON';
+        $payload['scheduled_date'] = '2026-11-23';
+        $this->postJson('/api/customer/tasks', $payload)->assertJsonValidationErrors('scheduled_date');
+
+        $this->travelTo(CarbonImmutable::parse('2026-11-25 05:30:00', 'UTC'));
+        $payload['scheduled_date'] = '2026-11-24';
+        $this->postJson('/api/customer/tasks', $payload)->assertJsonValidationErrors('scheduled_date');
+        $payload['scheduled_date'] = '2026-11-25';
+        $this->postJson('/api/customer/tasks', $payload)->assertCreated();
     }
 
     public function test_guests_and_other_customers_cannot_edit_a_booking(): void

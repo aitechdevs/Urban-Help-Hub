@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\TaskScheduleDate;
+
 use App\Support\InAppNotification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -30,7 +32,7 @@ class CustomerTaskDetailsController extends Controller
             'province' => ['required', 'string', 'max:100'],
             'postal_code' => ['required', 'string', 'max:20'],
             'country' => ['required', 'string', 'max:100'],
-            'scheduled_date' => ['required', 'date', 'after_or_equal:today'],
+            'scheduled_date' => TaskScheduleDate::rules($request),
             'scheduled_start_time' => ['required', 'date_format:H:i'],
             'scheduled_end_time' => ['nullable', 'date_format:H:i', 'after:scheduled_start_time'],
             'is_time_flexible' => ['sometimes', 'boolean'],
