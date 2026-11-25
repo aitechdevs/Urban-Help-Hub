@@ -1,25 +1,28 @@
  TRUEHOST_CPANEL_DEPLOYMENT.md                      | 124 +------
+ WORKSPACE-RECOVERY.md                              |  17 +
  backend-api/.env.example                           |  16 +-
  backend-api/.env.production.example                |  16 +-
  .../Console/Commands/ReconcilePayPalPayouts.php    |  34 ++
  .../app/Console/Commands/ShowPayPalPayoutAudit.php |  38 ++
  .../app/Http/Controllers/AdminController.php       | 113 +++---
  .../app/Http/Controllers/AuthController.php        |   6 +
- .../Controllers/CustomerTaskDetailsController.php  |   2 +-
- .../app/Http/Controllers/MarketplaceController.php |  90 ++++-
- .../app/Http/Controllers/PayPalController.php      | 300 ++++++++++++++++
+ .../Controllers/CustomerTaskDetailsController.php  |   6 +-
+ .../app/Http/Controllers/MarketplaceController.php |  96 ++++-
+ .../app/Http/Controllers/PayPalController.php      | 300 +++++++++++++++
  .../Http/Controllers/PayPalPaymentController.php   | 396 ++++++++++++++++++++
  .../Http/Controllers/PayPalPayoutController.php    |  73 ++++
- .../Http/Controllers/StripeConnectController.php   | 120 -------
+ .../Http/Controllers/ServiceCategoryController.php |   3 +
+ .../Http/Controllers/StripeConnectController.php   | 120 ------
  .../Http/Controllers/StripePaymentController.php   | 213 -----------
  .../app/Http/Middleware/AdminMiddleware.php        |  11 +-
  backend-api/app/Models/User.php                    |   1 +
  backend-api/app/Services/PayPalClient.php          |  43 +++
  backend-api/app/Services/PayPalPayoutService.php   | 243 +++++++++++++
- backend-api/app/Services/PayPalService.php         | 180 ++++++++++
+ backend-api/app/Services/PayPalService.php         | 180 +++++++++
  backend-api/app/Services/StripeClient.php          |  46 ---
- backend-api/app/Services/TaskPayments.php          |  80 +++++
- backend-api/app/Support/TaskMatching.php           | 120 +++++++
+ backend-api/app/Services/TaskPayments.php          |  80 ++++
+ backend-api/app/Support/TaskMatching.php           | 120 ++++++
+ backend-api/app/Support/TaskScheduleDate.php       |  56 +++
  backend-api/composer.json                          |   3 +-
  backend-api/composer.lock                          |  63 +---
  backend-api/config/services.php                    |  19 +-
@@ -32,17 +35,18 @@
  backend-api/routes/api.php                         |  22 +-
  backend-api/routes/console.php                     |   3 +
  .../tests/Feature/ApprovalConsistencyTest.php      |  32 ++
+ .../tests/Feature/CustomerTaskEditingTest.php      |  25 ++
  backend-api/tests/Feature/PayPalCheckoutTest.php   | 334 +++++++++++++++++
- backend-api/tests/Feature/PayPalPaymentsTest.php   | 400 +++++++++++++++++++++
+ backend-api/tests/Feature/PayPalPaymentsTest.php   | 402 +++++++++++++++++++++
  backend-api/tests/Feature/PayPalPayoutTest.php     | 339 +++++++++++++++++
  web-app/app/admin/administrators/page.tsx          |  19 +-
  web-app/app/admin/page.tsx                         |  55 ++-
  web-app/app/dashboard/page.tsx                     |  30 +-
- web-app/app/globals.css                            |  20 ++
+ web-app/app/globals.css                            |  20 +
  web-app/app/helper/dashboard/page.tsx              |  26 +-
- web-app/app/post-a-task/page.tsx                   |  64 +++-
- web-app/components/PayPalPayment.tsx               |  94 +++--
+ web-app/app/post-a-task/page.tsx                   |  94 ++++-
+ web-app/components/PayPalPayment.tsx               |  94 ++++-
  web-app/components/TaskConversations.tsx           |  13 +-
  web-app/public/sw.js                               |   2 +-
  web-app/tests/service-worker.test.mjs              |  10 +-
- 47 files changed, 3319 insertions(+), 714 deletions(-)
+ 51 files changed, 3458 insertions(+), 718 deletions(-)

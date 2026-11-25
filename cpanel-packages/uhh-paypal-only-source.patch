@@ -133,6 +133,29 @@ index a0a98fc..ddca5a5 100644
 -- Use real SMTP settings so password and workflow emails can be delivered.
 -- Back up the database and uploaded files before each update.
 +Keep the previously deployed version available until the checks pass. During a code rollback, keep additive payment tables in place to preserve history.
+diff --git a/WORKSPACE-RECOVERY.md b/WORKSPACE-RECOVERY.md
+new file mode 100644
+index 0000000..b7c141a
+--- /dev/null
++++ b/WORKSPACE-RECOVERY.md
+@@ -0,0 +1,17 @@
++# Recover the Urban Help Hub workspace
++
++Use the GitHub source branch recovery/uhh-paypal-release when starting a new Codex task. It contains the Laravel and Next.js source, migrations, tests and dependency lockfiles. The cpanel-sandbox-packages branch contains the deployment ZIPs and the CA$100 Sandbox verification record.
++
++To restore on a new computer, clone the source branch or pick it in Codex:
++
++    git clone --branch recovery/uhh-paypal-release https://github.com/aitechdevs/Urban-Help-Hub.git
++
++For development, use PHP 8.4.1 or newer with Composer and Node.js 20.9 or newer. In backend-api, run composer install, configure a local environment from .env.example, generate an app key for that local database and run php artisan migrate. Run php artisan test. In web-app, run npm ci, then use the build command in the deployment guide with the intended API URL.
++
++The Codex cloud environment's Publish action saves a reusable environment snapshot. Use it if available for the prepared setup. Use GitHub commits and pushes for source changes between milestones. A new task can restore the source from this branch even if it cannot reconnect to the old workspace.
++
++Keep .env, application keys, PayPal credentials, database backups, and private uploads in your protected hosting backups. Restore a database snapshot and its matching Laravel application key together when recovering encrypted payout data.
++
++## Latest verification
++
++The CA$100 Sandbox booking passed with two CA$50 payments, a CA$60 payout verified in the recipient's Sandbox Activity, and a CA$40 gross platform share. The 84 Laravel tests also verified that new PayPal orders use the configured public dashboard for approval and cancellation. A fresh interactive Sandbox approval and redirect on the deployed site remains to be checked.
 diff --git a/backend-api/.env.example b/backend-api/.env.example
 index 12f71d6..a90d70c 100644
 --- a/backend-api/.env.example
@@ -518,10 +541,28 @@ index a8f5d59..6624aa3 100644
              'success' => true,
              'message' => 'Country and currency preferences updated.',
 diff --git a/backend-api/app/Http/Controllers/CustomerTaskDetailsController.php b/backend-api/app/Http/Controllers/CustomerTaskDetailsController.php
-index 5ef53b8..f374aa0 100644
+index 5ef53b8..70761bd 100644
 --- a/backend-api/app/Http/Controllers/CustomerTaskDetailsController.php
 +++ b/backend-api/app/Http/Controllers/CustomerTaskDetailsController.php
-@@ -43,7 +43,7 @@ public function __invoke(Request $request, int $taskId): JsonResponse
+@@ -2,6 +2,8 @@
+ 
+ namespace App\Http\Controllers;
+ 
++use App\Support\TaskScheduleDate;
++
+ use App\Support\InAppNotification;
+ use Illuminate\Http\JsonResponse;
+ use Illuminate\Http\Request;
+@@ -30,7 +32,7 @@ public function __invoke(Request $request, int $taskId): JsonResponse
+             'province' => ['required', 'string', 'max:100'],
+             'postal_code' => ['required', 'string', 'max:20'],
+             'country' => ['required', 'string', 'max:100'],
+-            'scheduled_date' => ['required', 'date', 'after_or_equal:today'],
++            'scheduled_date' => TaskScheduleDate::rules($request),
+             'scheduled_start_time' => ['required', 'date_format:H:i'],
+             'scheduled_end_time' => ['nullable', 'date_format:H:i', 'after:scheduled_start_time'],
+             'is_time_flexible' => ['sometimes', 'boolean'],
+@@ -43,7 +45,7 @@ public function __invoke(Request $request, int $taskId): JsonResponse
              if (!$task || (int) $task->customer_id !== (int) $user->id) {
                  return ['error' => 'Task not found.', 'status' => 404];
              }
@@ -531,20 +572,22 @@ index 5ef53b8..f374aa0 100644
                  || DB::table('payments')->where('task_id', $taskId)->exists()) {
                  return ['error' => 'This task can no longer be edited. Work has started or payment is recorded.', 'status' => 409];
 diff --git a/backend-api/app/Http/Controllers/MarketplaceController.php b/backend-api/app/Http/Controllers/MarketplaceController.php
-index e5b0ff9..c1a5d2a 100644
+index e5b0ff9..78e1d7e 100644
 --- a/backend-api/app/Http/Controllers/MarketplaceController.php
 +++ b/backend-api/app/Http/Controllers/MarketplaceController.php
-@@ -2,7 +2,9 @@
+@@ -2,7 +2,11 @@
  
  namespace App\Http\Controllers;
  
++use App\Support\TaskScheduleDate;
++
 +use App\Services\TaskPayments;
  use App\Support\InAppNotification;
 +use App\Support\TaskMatching;
  use Carbon\Carbon;
  use Illuminate\Http\JsonResponse;
  use Illuminate\Http\Request;
-@@ -53,6 +55,7 @@ public function customerTasks(Request $request): JsonResponse
+@@ -53,6 +57,7 @@ public function customerTasks(Request $request): JsonResponse
                      'task_assignments.id as assignment_id',
                      'task_assignments.status',
                      'task_assignments.agreed_hourly_rate',
@@ -552,7 +595,7 @@ index e5b0ff9..c1a5d2a 100644
                      'task_assignments.accepted_at',
                      'task_assignments.started_at',
                      'task_assignments.completed_at',
-@@ -66,6 +69,9 @@ public function customerTasks(Request $request): JsonResponse
+@@ -66,6 +71,9 @@ public function customerTasks(Request $request): JsonResponse
              $task->payment = DB::table('payments')
                  ->where('task_id', $task->id)
                  ->select([
@@ -562,7 +605,7 @@ index e5b0ff9..c1a5d2a 100644
                      'currency',
                      'subtotal_amount',
                      'platform_fee',
-@@ -74,6 +80,14 @@ public function customerTasks(Request $request): JsonResponse
+@@ -74,6 +82,14 @@ public function customerTasks(Request $request): JsonResponse
                  ])
                  ->first();
  
@@ -577,7 +620,25 @@ index e5b0ff9..c1a5d2a 100644
              $task->my_review = DB::table('reviews')
                  ->where('task_id', $task->id)
                  ->where('reviewer_id', $user->id)
-@@ -216,7 +230,7 @@ public function updateTask(Request $request, int $taskId): JsonResponse
+@@ -105,7 +121,7 @@ public function createTask(Request $request): JsonResponse
+             'province' => ['required', 'string', 'max:100'],
+             'postal_code' => ['required', 'string', 'max:20'],
+             'country' => ['required', 'string', 'max:100'],
+-            'scheduled_date' => ['required', 'date', 'after_or_equal:today'],
++            'scheduled_date' => TaskScheduleDate::rules($request),
+             'scheduled_start_time' => ['required', 'date_format:H:i'],
+             'scheduled_end_time' => ['nullable', 'date_format:H:i', 'after:scheduled_start_time'],
+             'is_time_flexible' => ['sometimes', 'boolean'],
+@@ -203,7 +219,7 @@ public function updateTask(Request $request, int $taskId): JsonResponse
+             'province' => ['required', 'string', 'max:100'],
+             'postal_code' => ['required', 'string', 'max:20'],
+             'country' => ['required', 'string', 'max:100'],
+-            'scheduled_date' => ['required', 'date', 'after_or_equal:today'],
++            'scheduled_date' => TaskScheduleDate::rules($request),
+             'scheduled_start_time' => ['required', 'date_format:H:i'],
+             'scheduled_end_time' => ['nullable', 'date_format:H:i', 'after:scheduled_start_time'],
+             'is_time_flexible' => ['sometimes', 'boolean'],
+@@ -216,7 +232,7 @@ public function updateTask(Request $request, int $taskId): JsonResponse
              if (!$task || (int) $task->customer_id !== (int) $user->id) {
                  return ['error' => 'Task not found.', 'status' => 404];
              }
@@ -586,7 +647,7 @@ index e5b0ff9..c1a5d2a 100644
                  || DB::table('task_assignments')->where('task_id', $taskId)->whereIn('status', ['in_progress', 'awaiting_completion', 'completed'])->exists()
                  || DB::table('payments')->where('task_id', $taskId)->exists()) {
                  return ['error' => 'This task can no longer be edited. Work has started or payment is recorded.', 'status' => 409];
-@@ -295,6 +309,10 @@ public function confirmHelper(Request $request, int $taskId): JsonResponse
+@@ -295,6 +311,10 @@ public function confirmHelper(Request $request, int $taskId): JsonResponse
                  return ['error' => 'That Helper is not awaiting confirmation for this task.', 'status' => 422];
              }
  
@@ -597,7 +658,7 @@ index e5b0ff9..c1a5d2a 100644
              $now = now();
              DB::table('task_assignments')->where('id', $assignment->id)->update([
                  'status' => 'confirmed',
-@@ -336,7 +354,7 @@ public function confirmHelper(Request $request, int $taskId): JsonResponse
+@@ -336,7 +356,7 @@ public function confirmHelper(Request $request, int $taskId): JsonResponse
              return response()->json(['success' => false, 'message' => $outcome['error']], $outcome['status']);
          }
  
@@ -606,7 +667,7 @@ index e5b0ff9..c1a5d2a 100644
      }
  
      public function helperOpportunities(Request $request): JsonResponse
-@@ -393,14 +411,27 @@ public function confirmCompletion(Request $request, int $taskId): JsonResponse
+@@ -393,14 +413,27 @@ public function confirmCompletion(Request $request, int $taskId): JsonResponse
                  return ['error' => 'The Helper completion record is incomplete.', 'status' => 422];
              }
  
@@ -636,7 +697,7 @@ index e5b0ff9..c1a5d2a 100644
              $platformFee = round($subtotal * ($feePercent / 100), 2);
              $helperNet = round($subtotal - $platformFee, 2);
              $transactionCurrency = $task->currency ?: 'CAD';
-@@ -425,7 +456,8 @@ public function confirmCompletion(Request $request, int $taskId): JsonResponse
+@@ -425,7 +458,8 @@ public function confirmCompletion(Request $request, int $taskId): JsonResponse
                      'task_id' => $taskId,
                      'customer_id' => $user->id,
                      'helper_id' => $assignment->helper_id,
@@ -646,7 +707,7 @@ index e5b0ff9..c1a5d2a 100644
                      'currency' => $transactionCurrency,
                      'settlement_currency' => 'CAD',
                      'settlement_exchange_rate' => $settlementRate,
-@@ -449,7 +481,7 @@ public function confirmCompletion(Request $request, int $taskId): JsonResponse
+@@ -449,7 +483,7 @@ public function confirmCompletion(Request $request, int $taskId): JsonResponse
                      'payment_id' => $paymentId,
                      'task_id' => $taskId,
                      'helper_id' => $assignment->helper_id,
@@ -655,7 +716,7 @@ index e5b0ff9..c1a5d2a 100644
                      'currency' => $task->currency ?: 'CAD',
                      'gross_amount' => $subtotal,
                      'platform_deduction' => $platformFee,
-@@ -474,7 +506,7 @@ public function confirmCompletion(Request $request, int $taskId): JsonResponse
+@@ -474,7 +508,7 @@ public function confirmCompletion(Request $request, int $taskId): JsonResponse
                  (int) $assignment->helper_id,
                  'completion_confirmed',
                  'Job completion approved',
@@ -664,7 +725,7 @@ index e5b0ff9..c1a5d2a 100644
                  '/helper/dashboard',
                  ['task_id' => $taskId, 'payment_id' => $paymentId]
              );
-@@ -488,9 +520,10 @@ public function confirmCompletion(Request $request, int $taskId): JsonResponse
+@@ -488,9 +522,10 @@ public function confirmCompletion(Request $request, int $taskId): JsonResponse
  
              return [
                  'payment_id' => $paymentId,
@@ -678,7 +739,7 @@ index e5b0ff9..c1a5d2a 100644
              ];
          });
  
-@@ -500,7 +533,9 @@ public function confirmCompletion(Request $request, int $taskId): JsonResponse
+@@ -500,7 +535,9 @@ public function confirmCompletion(Request $request, int $taskId): JsonResponse
  
          return response()->json([
              'success' => true,
@@ -689,7 +750,7 @@ index e5b0ff9..c1a5d2a 100644
              'data' => $outcome,
          ]);
      }
-@@ -583,7 +618,14 @@ private function respondToOpportunity(Request $request, int $assignmentId, strin
+@@ -583,7 +620,14 @@ private function respondToOpportunity(Request $request, int $assignmentId, strin
              return $this->forbidden('This action is only available to Helper accounts.');
          }
  
@@ -705,7 +766,7 @@ index e5b0ff9..c1a5d2a 100644
              $assignment = DB::table('task_assignments')
                  ->where('id', $assignmentId)
                  ->where('helper_id', $user->id)
-@@ -598,15 +640,19 @@ private function respondToOpportunity(Request $request, int $assignmentId, strin
+@@ -598,15 +642,19 @@ private function respondToOpportunity(Request $request, int $assignmentId, strin
                  return ['error' => 'This opportunity has already been answered.', 'status' => 409];
              }
  
@@ -726,7 +787,7 @@ index e5b0ff9..c1a5d2a 100644
                  'accepted_at' => $decision === 'accepted' ? $now : null,
                  'updated_at' => $now,
              ]);
-@@ -660,6 +706,9 @@ private function advanceJob(Request $request, int $assignmentId, string $action)
+@@ -660,6 +708,9 @@ private function advanceJob(Request $request, int $assignmentId, string $action)
          }
  
          $outcome = DB::transaction(function () use ($user, $assignmentId, $action) {
@@ -736,7 +797,7 @@ index e5b0ff9..c1a5d2a 100644
              $assignment = DB::table('task_assignments')
                  ->where('id', $assignmentId)
                  ->where('helper_id', $user->id)
-@@ -670,13 +719,18 @@ private function advanceJob(Request $request, int $assignmentId, string $action)
+@@ -670,13 +721,18 @@ private function advanceJob(Request $request, int $assignmentId, string $action)
                  return ['error' => 'Job not found.', 'status' => 404];
              }
  
@@ -756,7 +817,7 @@ index e5b0ff9..c1a5d2a 100644
                  if (Carbon::parse($task->scheduled_date)->isAfter(now()->startOfDay())) {
                      return ['error' => 'This job cannot be started before its scheduled date.', 'status' => 422];
                  }
-@@ -746,6 +800,7 @@ private function helperAssignments(Request $request, array $assignmentStatuses,
+@@ -746,6 +802,7 @@ private function helperAssignments(Request $request, array $assignmentStatuses,
                  'task_assignments.id as assignment_id',
                  'task_assignments.status as assignment_status',
                  'task_assignments.agreed_hourly_rate',
@@ -764,7 +825,7 @@ index e5b0ff9..c1a5d2a 100644
                  'task_assignments.started_at',
                  'task_assignments.completed_at',
                  'tasks.id as task_id',
-@@ -775,6 +830,13 @@ private function helperAssignments(Request $request, array $assignmentStatuses,
+@@ -775,6 +832,13 @@ private function helperAssignments(Request $request, array $assignmentStatuses,
              ->get();
  
          foreach ($items as $item) {
@@ -1565,6 +1626,28 @@ index 0000000..f979a2b
 +        }
 +    }
 +}
+diff --git a/backend-api/app/Http/Controllers/ServiceCategoryController.php b/backend-api/app/Http/Controllers/ServiceCategoryController.php
+index c1a3b94..6250d69 100644
+--- a/backend-api/app/Http/Controllers/ServiceCategoryController.php
++++ b/backend-api/app/Http/Controllers/ServiceCategoryController.php
+@@ -2,6 +2,8 @@
+ 
+ namespace App\Http\Controllers;
+ 
++use App\Support\TaskScheduleDate;
++
+ use App\Models\ServiceCategory;
+ use Illuminate\Http\JsonResponse;
+ 
+@@ -18,6 +20,7 @@ public function index(): JsonResponse
+         return response()->json([
+             'success' => true,
+             'data' => $categories,
++            'schedule_timezones' => TaskScheduleDate::timezones(),
+         ]);
+     }
+ }
+\ No newline at end of file
 diff --git a/backend-api/app/Http/Controllers/StripeConnectController.php b/backend-api/app/Http/Controllers/StripeConnectController.php
 deleted file mode 100644
 index d01d483..0000000
@@ -2699,6 +2782,68 @@ index 0000000..b9fe9f6
 +        return [$normalized];
 +    }
 +}
+diff --git a/backend-api/app/Support/TaskScheduleDate.php b/backend-api/app/Support/TaskScheduleDate.php
+new file mode 100644
+index 0000000..b4a5214
+--- /dev/null
++++ b/backend-api/app/Support/TaskScheduleDate.php
+@@ -0,0 +1,56 @@
++<?php
++
++namespace App\Support;
++
++use Illuminate\Http\Request;
++
++class TaskScheduleDate
++{
++    private const CANADIAN_PROVINCES = [
++        'AB' => ['alberta', 'America/Edmonton'],
++        'BC' => ['british columbia', 'America/Vancouver'],
++        'MB' => ['manitoba', 'America/Winnipeg'],
++        'NB' => ['new brunswick', 'America/Moncton'],
++        'NL' => ['newfoundland and labrador', 'America/St_Johns'],
++        'NS' => ['nova scotia', 'America/Halifax'],
++        'NT' => ['northwest territories', 'America/Yellowknife'],
++        'NU' => ['nunavut', 'America/Iqaluit'],
++        'ON' => ['ontario', 'America/Toronto'],
++        'PE' => ['prince edward island', 'America/Halifax'],
++        'QC' => ['quebec', 'America/Toronto'],
++        'SK' => ['saskatchewan', 'America/Regina'],
++        'YT' => ['yukon', 'America/Whitehorse'],
++    ];
++
++    public static function timezones(): array
++    {
++        $provinces = [];
++        foreach (self::CANADIAN_PROVINCES as $code => [$name, $timezone]) {
++            $provinces[strtolower($code)] = $timezone;
++            $provinces[$name] = $timezone;
++        }
++        $provinces['québec'] = $provinces['quebec'];
++
++        return [
++            'canada' => [
++                'default' => 'America/Toronto',
++                'provinces' => $provinces,
++            ],
++            'default' => config('app.timezone', 'UTC'),
++        ];
++    }
++
++    public static function rules(Request $request): array
++    {
++        $country = $request->input('country');
++        $province = $request->input('province');
++        $timezones = self::timezones();
++        $timezone = $timezones['default'];
++        if (is_string($country) && in_array(mb_strtolower(trim($country)), ['canada', 'ca'], true)) {
++            $province = is_string($province) ? mb_strtolower(trim($province)) : '';
++            $timezone = $timezones['canada']['provinces'][$province] ?? $timezones['canada']['default'];
++        }
++
++        return ['required', 'date', 'after_or_equal:'.now($timezone)->toDateString()];
++    }
++}
 diff --git a/backend-api/composer.json b/backend-api/composer.json
 index ba2d790..9a90dec 100644
 --- a/backend-api/composer.json
@@ -3202,6 +3347,49 @@ index 9296689..815d53a 100644
 +    }
 +
  }
+diff --git a/backend-api/tests/Feature/CustomerTaskEditingTest.php b/backend-api/tests/Feature/CustomerTaskEditingTest.php
+index ade5371..350b58e 100644
+--- a/backend-api/tests/Feature/CustomerTaskEditingTest.php
++++ b/backend-api/tests/Feature/CustomerTaskEditingTest.php
+@@ -3,6 +3,7 @@
+ namespace Tests\Feature;
+ 
+ use App\Models\User;
++use Carbon\CarbonImmutable;
+ use Illuminate\Foundation\Testing\RefreshDatabase;
+ use Illuminate\Support\Facades\DB;
+ use Laravel\Sanctum\Sanctum;
+@@ -43,6 +44,30 @@ private function booking(string $status = 'open'): array
+         return [$owner, $task, $payload];
+     }
+ 
++    public function test_task_creation_and_edits_follow_torontos_calendar_when_utc_changes_first(): void
++    {
++        $this->travelTo(CarbonImmutable::parse('2026-11-25 00:30:00', 'UTC'));
++        [$owner, $task, $payload] = $this->booking();
++        Sanctum::actingAs($owner);
++
++        $this->getJson('/api/service-categories')->assertOk()
++            ->assertJsonPath('schedule_timezones.canada.provinces.ontario', 'America/Toronto');
++        $payload['scheduled_date'] = '2026-11-24';
++        $this->postJson('/api/customer/tasks', $payload)->assertCreated();
++        $this->putJson("/api/customer/tasks/{$task}/details", $payload)->assertOk();
++        $this->putJson("/api/customer/tasks/{$task}", $payload)->assertOk();
++
++        $payload['province'] = 'ON';
++        $payload['scheduled_date'] = '2026-11-23';
++        $this->postJson('/api/customer/tasks', $payload)->assertJsonValidationErrors('scheduled_date');
++
++        $this->travelTo(CarbonImmutable::parse('2026-11-25 05:30:00', 'UTC'));
++        $payload['scheduled_date'] = '2026-11-24';
++        $this->postJson('/api/customer/tasks', $payload)->assertJsonValidationErrors('scheduled_date');
++        $payload['scheduled_date'] = '2026-11-25';
++        $this->postJson('/api/customer/tasks', $payload)->assertCreated();
++    }
++
+     public function test_guests_and_other_customers_cannot_edit_a_booking(): void
+     {
+         [$owner, $task, $payload] = $this->booking();
 diff --git a/backend-api/tests/Feature/PayPalCheckoutTest.php b/backend-api/tests/Feature/PayPalCheckoutTest.php
 new file mode 100644
 index 0000000..b2e3e06
@@ -3544,10 +3732,10 @@ index 0000000..b2e3e06
 +}
 diff --git a/backend-api/tests/Feature/PayPalPaymentsTest.php b/backend-api/tests/Feature/PayPalPaymentsTest.php
 new file mode 100644
-index 0000000..5f2ed72
+index 0000000..64b6819
 --- /dev/null
 +++ b/backend-api/tests/Feature/PayPalPaymentsTest.php
-@@ -0,0 +1,400 @@
+@@ -0,0 +1,402 @@
 +<?php
 +
 +namespace Tests\Feature;
@@ -3590,6 +3778,7 @@ index 0000000..5f2ed72
 +    {
 +        parent::setUp();
 +        config(['services.paypal.payouts_enabled' => true, 'services.paypal.mode' => 'sandbox', 'services.paypal.client_id' => 'test-client', 'services.paypal.client_secret' => 'test-secret', 'services.paypal.merchant_id' => 'test-merchant', 'services.paypal.webhook_id' => 'test-webhook']);
++        config(['services.paypal.frontend_url' => 'https://urbanhelphub.com/']);
 +        $this->customer = User::factory()->create(['role' => 'customer', 'status' => 'active']);
 +        $this->helper = User::factory()->create(['role' => 'helper', 'status' => 'active']);
 +        $this->admin = User::factory()->create(['role' => 'admin', 'status' => 'active']);
@@ -3677,7 +3866,8 @@ index 0000000..5f2ed72
 +        $this->postJson('/api/customer/payments/'.$paymentId.'/capture', ['order_id' => $order])->assertOk();
 +
 +        Http::assertSent(fn (Request $request) => str_ends_with($request->url(), '/v2/checkout/orders')
-+            && str_contains($request['payment_source']['paypal']['experience_context']['return_url'], '/dashboard/?paypal_payment='));
++            && $request['payment_source']['paypal']['experience_context']['return_url'] === 'https://urbanhelphub.com/dashboard/?paypal_payment='.$paymentId
++            && $request['payment_source']['paypal']['experience_context']['cancel_url'] === 'https://urbanhelphub.com/dashboard/?paypal_cancelled=1');
 +
 +        return $order;
 +    }
@@ -4662,10 +4852,10 @@ index abc5288..ba50692 100644
                            {task.assignment_status === "awaiting_completion" && <span className="text-xs font-bold text-amber-700">Waiting for Customer approval</span>}
                            {task.assignment_status === "completed" && !task.my_review && <button type="button" disabled={busyJob === task.task_id} onClick={() => reviewCustomer(task.task_id)} className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-[#082f5b] disabled:opacity-50">Review Customer</button>}
 diff --git a/web-app/app/post-a-task/page.tsx b/web-app/app/post-a-task/page.tsx
-index 011ec8e..9568b4e 100644
+index 011ec8e..be175f7 100644
 --- a/web-app/app/post-a-task/page.tsx
 +++ b/web-app/app/post-a-task/page.tsx
-@@ -1,6 +1,6 @@
+@@ -1,12 +1,25 @@
  "use client";
  
 -import { FormEvent, useEffect, useMemo, useState } from "react";
@@ -4673,7 +4863,32 @@ index 011ec8e..9568b4e 100644
  import { useRouter } from "next/navigation";
  import RegionSelector from "@/components/RegionSelector";
  import { formatMoney, getStoredUser, REGIONS } from "@/lib/regions";
-@@ -39,11 +39,19 @@ export default function PostATaskPage() {
+ import { API_URL } from "@/lib/api";
+ 
+ type Category = { id: number; name: string; slug: string; description?: string | null };
++type ScheduleTimezones = {
++  canada: { default: string; provinces: Record<string, string> };
++  default: string;
++};
++
++function calendarDate(now: Date, timezone: string) {
++  const parts = new Intl.DateTimeFormat("en-CA", {
++    timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit",
++  }).formatToParts(now);
++
++  return ["year", "month", "day"].map((part) => parts.find(({ type }) => type === part)?.value).join("-");
++}
++
+ type FormState = {
+   service_category_id: number | null; title: string; description: string;
+   address_line_1: string; city: string; province: string; postal_code: string; country: string;
+@@ -35,15 +48,25 @@ export default function PostATaskPage() {
+   const router = useRouter();
+   const [categories, setCategories] = useState<Category[]>([]);
+   const [form, setForm] = useState<FormState>(initialForm);
++  const [scheduleTimezones, setScheduleTimezones] = useState<ScheduleTimezones | null>(null);
++  const [clock, setClock] = useState<Date | null>(null);
+   const [loading, setLoading] = useState(true);
    const [submitting, setSubmitting] = useState(false);
    const [error, setError] = useState("");
    const [success, setSuccess] = useState<{ message: string; matches: number } | null>(null);
@@ -4694,10 +4909,12 @@ index 011ec8e..9568b4e 100644
        try {
          const storedUser = getStoredUser();
          const storedCountryCode = typeof storedUser?.country_code === "string" ? storedUser.country_code : "CA";
-@@ -56,7 +64,30 @@ export default function PostATaskPage() {
+@@ -56,13 +79,49 @@ export default function PostATaskPage() {
          const result = await response.json();
          if (!response.ok || !result.success) throw new Error(result.message || "Unable to load services.");
          setCategories(result.data || []);
++        setScheduleTimezones(result.schedule_timezones ?? null);
++        setClock(new Date());
 +        const requestedTask = new URLSearchParams(window.location.search).get("edit");
 +        if (requestedTask !== null) {
 +          const taskResponse = await fetch(`${API_URL}/customer/tasks`, {
@@ -4725,7 +4942,24 @@ index 011ec8e..9568b4e 100644
          setError(err instanceof Error ? err.message : "Unable to load services.");
        } finally { setLoading(false); }
      }
-@@ -72,8 +103,8 @@ export default function PostATaskPage() {
+     load();
+   }, [router]);
+ 
++  useEffect(() => {
++    const timer = window.setInterval(() => setClock(new Date()), 15_000);
++    return () => window.clearInterval(timer);
++  }, []);
++
++  const isCanadianTask = ["canada", "ca"].includes(form.country.trim().toLowerCase());
++  const timezone = isCanadianTask
++    ? scheduleTimezones?.canada.provinces[form.province.trim().toLowerCase()] ?? scheduleTimezones?.canada.default
++    : scheduleTimezones?.default;
++  const minimumDate = clock && timezone ? calendarDate(clock, timezone) : undefined;
++
+   const selectedCategory = useMemo(() => categories.find((item) => item.id === form.service_category_id), [categories, form.service_category_id]);
+   function update<K extends keyof FormState>(key: K, value: FormState[K]) { setForm((current) => ({ ...current, [key]: value })); }
+   function selectCategory(categoryId: number) {
+@@ -72,8 +131,8 @@ export default function PostATaskPage() {
        return {
          ...current,
          service_category_id: categoryId,
@@ -4736,7 +4970,7 @@ index 011ec8e..9568b4e 100644
        };
      });
      setError("");
-@@ -81,15 +112,15 @@ export default function PostATaskPage() {
+@@ -81,15 +140,15 @@ export default function PostATaskPage() {
  
    async function submit(event: FormEvent<HTMLFormElement>) {
      event.preventDefault();
@@ -4756,7 +4990,7 @@ index 011ec8e..9568b4e 100644
        });
        const result = await response.json();
        if (!response.ok || !result.success) throw new Error(firstError(result.errors) || result.message || "Unable to publish this task.");
-@@ -100,21 +131,28 @@ export default function PostATaskPage() {
+@@ -100,21 +159,28 @@ export default function PostATaskPage() {
    }
  
    if (success) {
@@ -4783,7 +5017,8 @@ index 011ec8e..9568b4e 100644
          <Card number="1" title="Choose a service" subtitle="Only active UrbanHelpHub services are shown.">{loading ? <p className="text-slate-500">Loading services...</p> : <div className="grid gap-3 sm:grid-cols-2">{categories.map((category) => { const active = form.service_category_id === category.id; return <button type="button" key={category.id} onClick={() => selectCategory(category.id)} className={`rounded-2xl border p-4 text-left transition ${active ? "border-[var(--green)] bg-emerald-50 ring-2 ring-emerald-100" : "border-slate-200 hover:bg-slate-50"}`}><span className="font-black text-[var(--navy)]">{category.name}</span><span className="mt-1 block text-sm leading-5 text-slate-500">{category.description}</span></button>; })}</div>}</Card>
          <Card number="2" title="Task details" subtitle="Give Helpers enough information to make a confident decision."><Field label="Short task title"><input required maxLength={180} value={form.title} onChange={(e) => update("title", e.target.value)} placeholder="Example: Deep clean a two-bedroom apartment" className="input" /></Field><Field label="Description"><textarea required minLength={10} maxLength={5000} rows={6} value={form.description} onChange={(e) => update("description", e.target.value)} placeholder="Describe the work, size, access, equipment and anything the Helper should know." className="input resize-none" /></Field></Card>
          <Card number="3" title="Location" subtitle="Your exact street address is visible only after you confirm a Helper."><Field label="Task address"><input required value={form.address_line_1} onChange={(e) => update("address_line_1", e.target.value)} placeholder="Street address and unit" className="input" /></Field><div className="grid gap-4 sm:grid-cols-2"><Field label="City"><input required value={form.city} onChange={(e) => update("city", e.target.value)} className="input" /></Field><Field label="Province / state"><input required value={form.province} onChange={(e) => update("province", e.target.value)} className="input" /></Field><Field label="Postal code"><input required value={form.postal_code} onChange={(e) => update("postal_code", e.target.value.toUpperCase())} className="input" /></Field><Field label="Country"><input required value={form.country} onChange={(e) => update("country", e.target.value)} className="input" /></Field></div></Card>
-         <Card number="4" title="Schedule and budget" subtitle="Choose the preferred time and pricing range."><div className="grid gap-4 sm:grid-cols-3"><Field label="Date"><input required type="date" min={new Date().toISOString().slice(0, 10)} value={form.scheduled_date} onChange={(e) => update("scheduled_date", e.target.value)} className="input" /></Field><Field label="Start time"><input required type="time" value={form.scheduled_start_time} onChange={(e) => update("scheduled_start_time", e.target.value)} className="input" /></Field><Field label="End time"><input type="time" value={form.scheduled_end_time} onChange={(e) => update("scheduled_end_time", e.target.value)} className="input" /></Field></div><label className="flex cursor-pointer items-center gap-3 rounded-2xl bg-slate-50 p-4 font-semibold text-slate-700"><input type="checkbox" checked={form.is_time_flexible} onChange={(e) => update("is_time_flexible", e.target.checked)} className="h-4 w-4 accent-[var(--green)]" />My time is flexible</label><div className="grid gap-4 sm:grid-cols-3"><Field label="Pricing"><select value={form.pricing_type} onChange={(e) => update("pricing_type", e.target.value as FormState["pricing_type"])} className="input"><option value="flexible">Flexible</option><option value="hourly">Hourly</option><option value="fixed">Fixed price</option></select></Field><Field label={`Minimum budget (${currency})`}><input type="number" min="0" step="0.01" value={form.budget_min} onChange={(e) => update("budget_min", e.target.value)} className="input" /></Field><Field label={`Maximum budget (${currency})`}><input type="number" min="0" step="0.01" value={form.budget_max} onChange={(e) => update("budget_max", e.target.value)} className="input" /></Field></div></Card>
+-        <Card number="4" title="Schedule and budget" subtitle="Choose the preferred time and pricing range."><div className="grid gap-4 sm:grid-cols-3"><Field label="Date"><input required type="date" min={new Date().toISOString().slice(0, 10)} value={form.scheduled_date} onChange={(e) => update("scheduled_date", e.target.value)} className="input" /></Field><Field label="Start time"><input required type="time" value={form.scheduled_start_time} onChange={(e) => update("scheduled_start_time", e.target.value)} className="input" /></Field><Field label="End time"><input type="time" value={form.scheduled_end_time} onChange={(e) => update("scheduled_end_time", e.target.value)} className="input" /></Field></div><label className="flex cursor-pointer items-center gap-3 rounded-2xl bg-slate-50 p-4 font-semibold text-slate-700"><input type="checkbox" checked={form.is_time_flexible} onChange={(e) => update("is_time_flexible", e.target.checked)} className="h-4 w-4 accent-[var(--green)]" />My time is flexible</label><div className="grid gap-4 sm:grid-cols-3"><Field label="Pricing"><select value={form.pricing_type} onChange={(e) => update("pricing_type", e.target.value as FormState["pricing_type"])} className="input"><option value="flexible">Flexible</option><option value="hourly">Hourly</option><option value="fixed">Fixed price</option></select></Field><Field label={`Minimum budget (${currency})`}><input type="number" min="0" step="0.01" value={form.budget_min} onChange={(e) => update("budget_min", e.target.value)} className="input" /></Field><Field label={`Maximum budget (${currency})`}><input type="number" min="0" step="0.01" value={form.budget_max} onChange={(e) => update("budget_max", e.target.value)} className="input" /></Field></div></Card>
++        <Card number="4" title="Schedule and budget" subtitle="Choose the preferred time and pricing range."><div className="grid gap-4 sm:grid-cols-3"><Field label="Date"><input required type="date" min={minimumDate} value={form.scheduled_date} onChange={(e) => update("scheduled_date", e.target.value)} className="input" /></Field><Field label="Start time"><input required type="time" value={form.scheduled_start_time} onChange={(e) => update("scheduled_start_time", e.target.value)} className="input" /></Field><Field label="End time"><input type="time" value={form.scheduled_end_time} onChange={(e) => update("scheduled_end_time", e.target.value)} className="input" /></Field></div><label className="flex cursor-pointer items-center gap-3 rounded-2xl bg-slate-50 p-4 font-semibold text-slate-700"><input type="checkbox" checked={form.is_time_flexible} onChange={(e) => update("is_time_flexible", e.target.checked)} className="h-4 w-4 accent-[var(--green)]" />My time is flexible</label><div className="grid gap-4 sm:grid-cols-3"><Field label="Pricing"><select value={form.pricing_type} onChange={(e) => update("pricing_type", e.target.value as FormState["pricing_type"])} className="input"><option value="flexible">Flexible</option><option value="hourly">Hourly</option><option value="fixed">Fixed price</option></select></Field><Field label={`Minimum budget (${currency})`}><input type="number" min="0" step="0.01" value={form.budget_min} onChange={(e) => update("budget_min", e.target.value)} className="input" /></Field><Field label={`Maximum budget (${currency})`}><input type="number" min="0" step="0.01" value={form.budget_max} onChange={(e) => update("budget_max", e.target.value)} className="input" /></Field></div></Card>
        </div>
 -      <aside className="h-fit rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm lg:sticky lg:top-6"><p className="text-xs font-black uppercase tracking-[0.16em] text-[var(--green)]">Task summary</p><Summary label="Service" value={selectedCategory?.name || "Choose a service"} /><Summary label="Location" value={[form.city, form.province, form.country].filter(Boolean).join(", ")} /><Summary label="Date" value={form.scheduled_date || "Choose a date"} /><Summary label="Time" value={`${form.scheduled_start_time}${form.scheduled_end_time ? `–${form.scheduled_end_time}` : ""}`} /><Summary label="Budget" value={form.budget_min || form.budget_max ? `${form.budget_min ? formatMoney(form.budget_min, currency) : "0"}–${form.budget_max ? formatMoney(form.budget_max, currency) : "open"}` : "Flexible"} /><div className="mt-6 rounded-2xl bg-emerald-50 p-4 text-sm leading-6 text-emerald-900">Your task will be offered only to verified Helpers with an approved matching service in this city.</div><button type="submit" disabled={submitting || loading || !form.service_category_id} className="mt-6 w-full rounded-2xl bg-[var(--green)] px-6 py-4 font-black text-white disabled:cursor-not-allowed disabled:opacity-50">{submitting ? "Publishing task..." : "Publish and match Helpers →"}</button></aside>
 +      <aside className="h-fit rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm lg:sticky lg:top-6"><p className="text-xs font-black uppercase tracking-[0.16em] text-[var(--green)]">Task summary</p><Summary label="Service" value={selectedCategory?.name || "Choose a service"} /><Summary label="Location" value={[form.city, form.province, form.country].filter(Boolean).join(", ")} /><Summary label="Date" value={form.scheduled_date || "Choose a date"} /><Summary label="Time" value={`${form.scheduled_start_time}${form.scheduled_end_time ? `–${form.scheduled_end_time}` : ""}`} /><Summary label="Budget" value={form.budget_min || form.budget_max ? `${form.budget_min ? formatMoney(form.budget_min, currency) : "0"}–${form.budget_max ? formatMoney(form.budget_max, currency) : "open"}` : "Flexible"} /><div className="mt-6 rounded-2xl bg-emerald-50 p-4 text-sm leading-6 text-emerald-900">Your task will be offered only to verified Helpers with an approved matching service in this city.</div><button type="submit" disabled={submitting || loading || loadFailed || !form.service_category_id} className="mt-6 w-full rounded-2xl bg-[var(--green)] px-6 py-4 font-black text-white disabled:cursor-not-allowed disabled:opacity-50">{submitting ? "Submitting task…" : editTask ? "Resubmit for approval" : "Submit for approval"}</button></aside>
