@@ -218,3 +218,5 @@ require __DIR__.'/password-recovery.php';
 require __DIR__.'/helper-approval-consistency.php';
 
 require __DIR__.'/final-approval-email.php';
+
+require __DIR__.'/administrator-management.php';

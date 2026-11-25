@@ -10,29 +10,24 @@ type AdminAccount = {
   email: string;
   role: "admin" | "super_admin";
   status: "active" | "suspended";
-  permissions?: string[];
+};
+
+type AdministratorAuditEvent = {
+  id: number;
+  actor_user_id: number;
+  actor_name: string;
+  administrator_user_id: number;
+  administrator_name: string;
+  action: "created" | "activated" | "suspended";
+  created_at: string;
 };
 
 type ApiResult = {
   success?: boolean;
   message?: string;
   data?: AdminAccount[] | { administrators?: AdminAccount[]; users?: AdminAccount[] };
-  allowed_permissions?: string[];
+  audit_events?: AdministratorAuditEvent[];
   errors?: Record<string, string[]>;
-};
-
-const PERMISSION_LABELS: Record<string, string> = {
-  "dashboard.view": "View administrator dashboard",
-  "customers.view": "View customers",
-  "helpers.view": "View helpers",
-  "tasks.view": "View tasks",
-  "payments.view": "View payments",
-  "tasks.approve": "Approve/reject customer tasks",
-  "helpers.verify": "Verify helpers",
-  "helpers.services.review": "Review helper services",
-  "helpers.documents.review": "Review helper documents",
-  "helpers.manage": "Manage helper accounts",
-  "profiles.review": "Review customer profiles",
 };
 
 function getToken(): string | null {
@@ -56,53 +51,15 @@ async function readResult(response: Response): Promise<ApiResult> {
   return body;
 }
 
-function PermissionPicker({
-  allowed,
-  selected,
-  onChange,
-  idPrefix,
-}: {
-  allowed: string[];
-  selected: string[];
-  onChange: (next: string[]) => void;
-  idPrefix: string;
-}) {
-  return (
-    <fieldset className="space-y-2 rounded-xl border border-slate-200 p-4">
-      <legend className="px-2 text-sm font-bold">Restricted permissions</legend>
-      {allowed.map((code) => (
-        <label key={code} htmlFor={`${idPrefix}-${code}`} className="flex cursor-pointer items-start gap-2 text-sm">
-          <input
-            id={`${idPrefix}-${code}`}
-            type="checkbox"
-            className="mt-1"
-            checked={selected.includes(code)}
-            onChange={(event) =>
-              onChange(event.target.checked ? [...selected, code] : selected.filter((v) => v !== code))
-            }
-          />
-          <span>{PERMISSION_LABELS[code] || code} <span className="text-xs text-slate-500">({code})</span></span>
-        </label>
-      ))}
-      {allowed.length === 0 && (
-        <p className="text-sm text-amber-700">No permissible actions were returned by Laravel.</p>
-      )}
-    </fieldset>
-  );
-}
-
 function EditableAccount({
   account,
-  allowed,
   onSaved,
   onAuthRequired,
 }: {
   account: AdminAccount;
-  allowed: string[];
   onSaved: () => Promise<void>;
   onAuthRequired: () => void;
 }) {
-  const [selected, setSelected] = useState<string[]>(account.permissions || []);
   const [status, setStatus] = useState<"active" | "suspended">(account.status);
   const [currentPassword, setCurrentPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -115,10 +72,9 @@ function EditableAccount({
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busy || !currentPassword) return;
-    const statusChanged = status !== account.status;
+    if (busy || !currentPassword || status === account.status) return;
     const action = status === "active" ? "activate" : "suspend";
-    if (!window.confirm(`Save permissions${statusChanged ? ` and ${action} this account` : ""} for ${account.email}?`)) return;
+    if (!window.confirm(`Confirm you want to ${action} the Admin account for ${account.email}?`)) return;
     setBusy(true);
     setError("");
     setNotice("");
@@ -130,7 +86,6 @@ function EditableAccount({
           current_password: currentPassword,
           role: "admin",
           status,
-          permissions: selected,
         }),
       });
       if (response.status === 401) { onAuthRequired(); return; }
@@ -152,7 +107,6 @@ function EditableAccount({
         <p className="break-all text-sm text-slate-600">{account.email}</p>
         <p className="mt-1 text-xs text-slate-500">{account.role} · {account.status}</p>
       </div>
-      <PermissionPicker allowed={allowed} selected={selected} onChange={setSelected} idPrefix={`existing-${account.id}`} />
       <label className="block text-sm font-bold" htmlFor={`status-${account.id}`}>
         Account status
         <select id={`status-${account.id}`} value={status} onChange={(event) => setStatus(event.target.value as "active" | "suspended")} className="mt-1 w-full rounded-xl border border-slate-300 bg-white p-3 font-normal">
@@ -166,8 +120,8 @@ function EditableAccount({
       </label>
       {error && <p ref={errorRef} tabIndex={-1} role="alert" className="text-sm text-red-700">{error}</p>}
       {notice && <p role="status" className="text-sm text-green-700">{notice}</p>}
-      <button type="submit" disabled={busy} className="w-full rounded-xl bg-[#082f5b] px-4 py-3 text-sm font-bold text-white disabled:opacity-50">
-        {busy ? "Saving…" : "Save account permissions / status"}
+      <button type="submit" disabled={busy || status === account.status} className="w-full rounded-xl bg-[#082f5b] px-4 py-3 text-sm font-bold text-white disabled:opacity-50">
+        {busy ? "Saving…" : "Save account status"}
       </button>
     </form>
   );
@@ -178,7 +132,7 @@ export default function AdministratorManagement() {
   const [checking, setChecking] = useState(true);
   const [backendReady, setBackendReady] = useState(false);
   const [accounts, setAccounts] = useState<AdminAccount[]>([]);
-  const [allowed, setAllowed] = useState<string[]>([]);
+  const [auditEvents, setAuditEvents] = useState<AdministratorAuditEvent[]>([]);
   const [error, setError] = useState("");
   const errorRef = useRef<HTMLParagraphElement>(null);
   useEffect(() => {
@@ -190,7 +144,6 @@ export default function AdministratorManagement() {
   const [password, setPassword] = useState("");
   const [passwordConfirmation, setPasswordConfirmation] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
-  const [permissions, setPermissions] = useState<string[]>(["dashboard.view"]);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -210,9 +163,8 @@ export default function AdministratorManagement() {
       const result = await readResult(response);
       const rows = Array.isArray(result.data) ? result.data : (result.data?.administrators || result.data?.users || null);
       if (!Array.isArray(rows)) throw new Error("Unexpected administrators response from Laravel.");
-      if (!Array.isArray(result.allowed_permissions)) throw new Error("Laravel did not provide its allowed_permissions list.");
       setAccounts(rows.filter((row: AdminAccount) => row.role === "admin" || row.role === "super_admin"));
-      setAllowed(result.allowed_permissions);
+      setAuditEvents(result.audit_events ?? []);
       setBackendReady(true);
     } catch (cause) {
       setBackendReady(false);
@@ -240,7 +192,7 @@ export default function AdministratorManagement() {
       setError("Your current Super Admin password is required.");
       return;
     }
-    if (!window.confirm(`Create a SUSPENDED restricted Admin account for ${email.trim()}? Activate it separately after reviewing the permissions.`)) return;
+    if (!window.confirm(`Create a suspended Admin account for ${email.trim()}? You can activate it after reviewing the account.`)) return;
     setBusy(true);
     setError("");
     setNotice("");
@@ -251,14 +203,12 @@ export default function AdministratorManagement() {
           current_password: currentPassword,
           name: name.trim(), email: email.trim(),
           password, password_confirmation: passwordConfirmation,
-          permissions,
         }),
       });
       if (response.status === 401) { router.replace("/login"); return; }
       await readResult(response);
       setPassword(""); setPasswordConfirmation(""); setCurrentPassword("");
-      setName(""); setEmail(""); setPermissions(["dashboard.view"]);
-      setNotice("Administrator created in suspended status. Review the permissions and activate the account below when ready.");
+      setNotice("Administrator created in suspended status. Review the account and activate it when ready.");
       await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to create administrator.");
@@ -277,7 +227,7 @@ export default function AdministratorManagement() {
         <div className="mb-6 flex items-center justify-between gap-3">
           <div>
             <h1 className="text-3xl font-bold">Administrator management</h1>
-            <p className="mt-2 text-sm text-slate-600">Create restricted accounts, select allowed actions and activate administrators only after reviewing access.</p>
+            <p className="mt-2 text-sm text-slate-600">Create, activate or suspend Admin accounts and review recent account activity.</p>
           </div>
           <button type="button" onClick={() => void load()} className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-bold">Refresh</button>
         </div>
@@ -287,8 +237,8 @@ export default function AdministratorManagement() {
           <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <h2 className="text-xl font-bold">Create Admin User</h2>
-              <p className="mt-2 text-sm text-slate-500">New accounts are always suspended by Laravel. Only authorised Super Admins can create or activate them.</p>
-              {!backendReady && <p className="mt-4 text-sm text-amber-800">Creation is disabled until Laravel authorises this account and supplies allowed permissions.</p>}
+              <p className="mt-2 text-sm text-slate-500">New Admin accounts start suspended. Once activated, Admins can run marketplace operations, including PayPal payouts. Only Super Admins can manage administrator accounts.</p>
+              {!backendReady && <p className="mt-4 text-sm text-amber-800">Account creation is available after the server verifies your Super Admin access.</p>}
               <form onSubmit={createAccount} className="mt-5 space-y-4">
                 <label className="block text-sm font-bold" htmlFor="new-name">Full name
                   <input id="new-name" required maxLength={150} value={name} onChange={(event) => setName(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-300 p-3 font-normal" />
@@ -302,7 +252,6 @@ export default function AdministratorManagement() {
                 <label className="block text-sm font-bold" htmlFor="new-password-confirmation">Confirm temporary password
                   <input id="new-password-confirmation" type="password" required minLength={14} autoComplete="new-password" value={passwordConfirmation} onChange={(event) => setPasswordConfirmation(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-300 p-3 font-normal" />
                 </label>
-                <PermissionPicker allowed={allowed} selected={permissions} onChange={setPermissions} idPrefix="new" />
                 <label className="block text-sm font-bold" htmlFor="owner-password">Your current Super Admin password
                   <input id="owner-password" type="password" required autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-300 p-3 font-normal" />
                 </label>
@@ -313,10 +262,10 @@ export default function AdministratorManagement() {
             </section>
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <h2 className="text-xl font-bold">Administrator accounts</h2>
-              <p className="mt-1 text-sm text-slate-500">Restricted administrators can be activated or suspended. Super Admin accounts are listed for information only.</p>
+              <p className="mt-1 text-sm text-slate-500">Activate or suspend an Admin account below. Super Admin accounts are listed for reference.</p>
               <div className="mt-5 space-y-4">
                 {accounts.map((account) => account.role === "admin" ? (
-                  <EditableAccount key={account.id} account={account} allowed={allowed} onSaved={load} onAuthRequired={() => router.replace("/login")} />
+                  <EditableAccount key={account.id} account={account} onSaved={load} onAuthRequired={() => router.replace("/login")} />
                 ) : (
                   <article key={account.id} className="rounded-xl border border-slate-200 p-4">
                     <p className="font-bold">{account.name} <span className="text-xs text-slate-500">(Super Admin)</span></p>
@@ -328,6 +277,26 @@ export default function AdministratorManagement() {
               </div>
             </section>
           </div>
+        )}
+        {backendReady && !checking && (
+          <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-xl font-bold">Recent administrator account activity</h2>
+            {auditEvents.length ? (
+              <ul className="mt-4 divide-y divide-slate-200 text-sm">
+                {auditEvents.map((event) => (
+                  <li key={event.id} className="py-3">
+                    <p>
+                      <strong>{event.actor_name}</strong> (#{event.actor_user_id}) {event.action}{" "}
+                      <strong>{event.administrator_name}</strong> (#{event.administrator_user_id}).
+                    </p>
+                    <time dateTime={event.created_at} className="text-slate-500">
+                      {new Date(event.created_at).toLocaleString()}
+                    </time>
+                  </li>
+                ))}
+              </ul>
+            ) : <p className="mt-2 text-sm text-slate-500">No account activity recorded yet.</p>}
+          </section>
         )}
       </div>
     </main>
