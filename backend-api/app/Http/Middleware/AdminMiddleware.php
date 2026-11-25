@@ -2,7 +2,6 @@
 
 namespace App\Http\Middleware;
 
-use App\Http\Controllers\PayPalPaymentController;
 use Closure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -26,15 +25,7 @@ class AdminMiddleware
             ], 401);
         }
 
-        $payoutActions = [
-            PayPalPaymentController::class.'@release',
-            PayPalPaymentController::class.'@sendPayout',
-            PayPalPaymentController::class.'@payoutStatus',
-        ];
-        $superAdminPayout = $user->role === 'super_admin'
-            && in_array($request->route()?->getActionName(), $payoutActions, true);
-
-        if ($user->role !== 'admin' && !$superAdminPayout) {
+        if (!in_array($user->role, ['admin', 'super_admin'], true)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Administrator access is required.',

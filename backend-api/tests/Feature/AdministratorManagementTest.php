@@ -37,6 +37,27 @@ class AdministratorManagementTest extends TestCase
         $this->assertDatabaseCount('administrator_audit_events', 0);
     }
 
+    public function test_operational_dashboard_requires_an_active_administrator(): void
+    {
+        $this->getJson('/api/admin/dashboard')->assertUnauthorized();
+
+        foreach ([['admin', 'suspended'], ['super_admin', 'suspended'], ['customer', 'active'], ['helper', 'active']] as [$role, $status]) {
+            $this->app['auth']->forgetGuards();
+            $actor = User::factory()->create(compact('role', 'status'));
+            $this->withToken($actor->createToken('test')->plainTextToken);
+            $this->getJson('/api/admin/dashboard')->assertForbidden();
+        }
+
+        $this->app['auth']->forgetGuards();
+        $owner = User::factory()->create(['role' => 'super_admin', 'status' => 'active']);
+        $this->withToken($owner->createToken('test')->plainTextToken);
+
+        $this->getJson('/api/admin/dashboard')->assertOk()->assertJsonPath('data.admin.id', $owner->id);
+        $this->getJson('/api/admin/helpers?status=pending')->assertOk();
+        $this->getJson('/api/admin/payments')->assertOk();
+        $this->getJson('/api/admin/tasks?status=pending_approval')->assertOk();
+    }
+
     public function test_super_admin_lifecycle_is_password_protected_and_audited(): void
     {
         $owner = User::factory()->create([
