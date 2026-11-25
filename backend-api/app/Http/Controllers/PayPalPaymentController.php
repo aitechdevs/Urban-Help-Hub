@@ -3,13 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
-
 use App\Services\PayPalClient;
 use App\Services\TaskPayments;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class PayPalPaymentController extends Controller
@@ -18,11 +19,20 @@ class PayPalPaymentController extends Controller
 
     public function checkout(Request $request, int $paymentId): JsonResponse
     {
-        return DB::transaction(function () use ($request, $paymentId) {
+        $stage = DB::transaction(function () use ($request, $paymentId) {
             $payment = $this->customerPayment($request, $paymentId);
-            $validated = $request->validate(['stage' => ['required', 'in:commitment,balance']]);
+            $stage = $request->validate(['stage' => ['required', 'in:commitment,balance,full']])['stage'];
+            if ($stage === 'full') {
+                $this->prepareFullPayment($payment);
+            }
+
+            return $stage;
+        });
+
+        return DB::transaction(function () use ($request, $paymentId, $stage) {
+            $payment = $this->customerPayment($request, $paymentId);
             abort_if(in_array($payment->status, ['blocked', 'refunded', 'failed'], true), 409, 'This payment requires administrator review.');
-            $installment = DB::table('payment_installments')->where('payment_id', $paymentId)->where('stage', $validated['stage'])->lockForUpdate()->first();
+            $installment = DB::table('payment_installments')->where('payment_id', $paymentId)->where('stage', $stage)->lockForUpdate()->first();
             abort_unless($installment, 404);
             abort_if($installment->status === 'completed', 409, 'This installment has already been paid.');
             $this->requirePayableInstallment($payment, $installment);
@@ -101,8 +111,35 @@ class PayPalPaymentController extends Controller
         return $payment;
     }
 
+    private function prepareFullPayment(object $payment): void
+    {
+        abort_unless($payment->status === 'pending', 409, 'The full payment option is available only before checkout or payment.');
+
+        $installments = DB::table('payment_installments')->where('payment_id', $payment->id)->lockForUpdate()->get();
+        if ($installments->contains('stage', 'full')) {
+            return;
+        }
+
+        $total = TaskPayments::minor($payment->total_amount);
+        abort_unless($installments->pluck('stage')->sort()->values()->all() === ['balance', 'commitment']
+            && $installments->every(fn ($item) => $item->status === 'pending' && !$item->paypal_order_id && !$item->paypal_capture_id)
+            && (int) $installments->sum('amount_minor') === $total,
+            409, 'Continue the existing installment checkout. A second payment option cannot be opened.');
+
+        // Persist the selection and request ID before contacting PayPal.
+        DB::table('payment_installments')->where('payment_id', $payment->id)->update([
+            'status' => 'superseded', 'updated_at' => now(),
+        ]);
+        DB::table('payment_installments')->insert([
+            'payment_id' => $payment->id, 'stage' => 'full', 'amount_minor' => $total,
+            'status' => 'pending', 'request_id' => (string) Str::uuid(),
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+    }
+
     private function requirePayableInstallment(object $payment, object $installment): void
     {
+        abort_if($installment->status === 'superseded', 409, 'Continue the existing full PayPal checkout.');
         abort_unless($installment->status === 'pending', 409, 'This installment requires review.');
         if ($installment->stage === 'balance') {
             abort_unless($payment->customer_confirmed_at && app(TaskPayments::class)->commitmentVerified($payment),
@@ -140,7 +177,7 @@ class PayPalPaymentController extends Controller
         DB::table('payment_installments')->where('id', $installment->id)->update([
             'paypal_capture_id' => $capture['id'], 'status' => 'completed', 'paid_at' => now(), 'updated_at' => now(),
         ]);
-        $allPaid = ! DB::table('payment_installments')->where('payment_id', $payment->id)->where('status', '!=', 'completed')->exists();
+        $allPaid = ! DB::table('payment_installments')->where('payment_id', $payment->id)->whereNotIn('status', ['completed', 'superseded'])->exists();
         DB::table('payments')->where('id', $payment->id)->update([
             'status' => $payment->status === 'blocked' ? 'blocked' : ($allPaid ? 'paid' : 'partially_paid'),
             'provider_fees' => TaskPayments::money(TaskPayments::minor($payment->provider_fees) + TaskPayments::minor($fee['value'])),
@@ -162,8 +199,10 @@ class PayPalPaymentController extends Controller
             $payment = DB::table('payments')->where('id', $initial->payment_id)->lockForUpdate()->first();
             $payout = DB::table('payouts')->where('id', $payoutId)->lockForUpdate()->first();
             abort_unless($payment && $payout->provider === 'paypal' && $payment->provider === 'paypal', 409);
-            abort_unless($payment->status === 'paid' && $payment->customer_confirmed_at && DB::table('tasks')->where('id', $payment->task_id)->where('status', 'completed')->exists()
-                && DB::table('payment_installments')->where('payment_id', $payment->id)->where('status', 'completed')->count() === 2, 409, 'Both payments and customer completion confirmation are required.');
+            abort_unless($payment->status === 'paid' && $payment->customer_confirmed_at
+                && DB::table('tasks')->where('id', $payment->task_id)->where('status', 'completed')->exists(),
+                409, 'Full payment and customer completion confirmation are required.');
+            $this->verifiedInstallments($payment);
             abort_unless($payment->paypal_mode === config('services.paypal.mode'), 409, 'Payment environment mismatch.');
             abort_if($payout->status !== 'pending', 409, 'This payout has already been submitted. Refresh its PayPal status instead.');
             $recipient = DB::table('paypal_payout_accounts')->where('helper_id', $payout->helper_id)->value('recipient');
@@ -196,10 +235,7 @@ class PayPalPaymentController extends Controller
             abort_unless($row->provider === 'paypal' && $row->status === 'processing' && ! $row->processed_at && $payment->status === 'paid' && $payment->customer_confirmed_at, 409, 'Payout already submitted or requires review.');
             abort_unless($payment->paypal_mode === config('services.paypal.mode'), 409, 'Payment environment mismatch.');
             abort_unless($row->released_by && $row->released_at && $row->paypal_recipient, 409, 'Administrator approval is required.');
-            $installments = DB::table('payment_installments')->where('payment_id', $payment->id)->get();
-            abort_unless($installments->pluck('stage')->sort()->values()->all() === ['balance', 'commitment'], 409, 'Both installments are required.');
-            foreach ($installments as $installment) {
-                abort_unless($installment->status === 'completed' && $installment->paypal_capture_id, 409, 'Both installments must be paid.');
+            foreach ($this->verifiedInstallments($payment) as $installment) {
                 $capture = $this->paypal->request('GET', 'v2/payments/captures/'.$installment->paypal_capture_id);
                 abort_unless(($capture['status'] ?? '') === 'COMPLETED'
                     && ($capture['id'] ?? '') === $installment->paypal_capture_id
@@ -229,6 +265,19 @@ class PayPalPaymentController extends Controller
         });
 
         return response()->json(['success' => true, 'message' => 'PayPal payout submitted. Payment is not marked paid until PayPal confirms success.']);
+    }
+
+    private function verifiedInstallments(object $payment): Collection
+    {
+        $installments = DB::table('payment_installments')->where('payment_id', $payment->id)
+            ->where('status', '!=', 'superseded')->orderBy('stage')->get();
+        $stages = $installments->pluck('stage')->all();
+        abort_unless(in_array($stages, [['balance', 'commitment'], ['full']], true)
+            && (int) $installments->sum('amount_minor') === TaskPayments::minor($payment->total_amount)
+            && $installments->every(fn ($item) => $item->status === 'completed' && $item->paypal_capture_id && $item->paypal_order_id),
+            409, 'The full customer payment must be verified.');
+
+        return $installments;
     }
 
     public function payoutStatus(Request $request, int $payoutId): JsonResponse

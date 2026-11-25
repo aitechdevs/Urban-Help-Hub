@@ -27,7 +27,7 @@ class TaskPayments
     {
         return in_array($payment->status, ['partially_paid', 'paid'], true)
             && DB::table('payment_installments')->where('payment_id', $payment->id)
-                ->where('stage', 'commitment')->where('status', 'completed')
+                ->whereIn('stage', ['commitment', 'full'])->where('status', 'completed')
                 ->whereNotNull('paypal_capture_id')->exists();
     }
 

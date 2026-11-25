@@ -204,6 +204,45 @@ class PayPalPaymentsTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_full_upfront_payment_uses_one_capture_and_payout_still_requires_completion(): void
+    {
+        $paymentId = $this->confirmMatch();
+        $this->getJson('/api/customer/tasks')->assertOk()->assertJsonPath('data.0.payment.installments.0.has_order', 0);
+        $orderId = $this->pay($paymentId, 'full');
+        $this->assertDatabaseHas('payment_installments', ['payment_id' => $paymentId, 'stage' => 'full', 'amount_minor' => 10000, 'status' => 'completed']);
+        $this->assertSame(2, DB::table('payment_installments')->where('payment_id', $paymentId)->where('status', 'superseded')->whereNull('paypal_order_id')->count());
+        $this->getJson('/api/customer/tasks')->assertOk()->assertJsonCount(1, 'data.0.payment.installments')
+            ->assertJsonPath('data.0.payment.installments.0.stage', 'full');
+        $this->postJson('/api/customer/payments/'.$paymentId.'/capture', ['order_id' => $orderId])->assertOk();
+        foreach (['commitment', 'balance', 'full'] as $stage) {
+            $this->postJson('/api/customer/payments/'.$paymentId.'/checkout', ['stage' => $stage])->assertConflict();
+        }
+        $this->assertDatabaseHas('payments', ['id' => $paymentId, 'status' => 'paid', 'provider_fees' => 2]);
+
+        $payoutId = DB::table('payouts')->value('id');
+        Sanctum::actingAs($this->admin);
+        $this->postJson('/api/admin/payouts/'.$payoutId.'/release', ['customer_verified' => true, 'tax_amount' => 0])->assertConflict();
+        $this->completeWork();
+        Sanctum::actingAs($this->admin);
+        $this->postJson('/api/admin/payouts/'.$payoutId.'/release', ['customer_verified' => true, 'tax_amount' => 0])->assertOk();
+        $this->postJson('/api/admin/payouts/'.$payoutId.'/submit')->assertOk();
+        $this->postJson('/api/admin/payouts/'.$payoutId.'/refresh')->assertOk();
+        $this->assertDatabaseHas('payouts', ['id' => $payoutId, 'status' => 'paid', 'net_amount' => 60]);
+        $this->assertCount(1, Http::recorded(fn (Request $request) => $request->method() === 'POST'
+            && str_ends_with($request->url(), '/v2/checkout/orders')));
+    }
+
+    public function test_an_existing_split_checkout_cannot_be_replaced_by_a_full_order(): void
+    {
+        $paymentId = $this->confirmMatch();
+        $url = '/api/customer/payments/'.$paymentId.'/checkout';
+        $this->postJson($url, ['stage' => 'commitment'])->assertOk();
+        $this->postJson($url, ['stage' => 'full'])->assertConflict();
+        $this->assertDatabaseMissing('payment_installments', ['payment_id' => $paymentId, 'stage' => 'full']);
+        $this->assertCount(1, Http::recorded(fn (Request $request) => $request->method() === 'POST'
+            && str_ends_with($request->url(), '/v2/checkout/orders')));
+    }
+
     public function test_installments_cannot_use_historical_checkout_or_payout_routes(): void
     {
         $paymentId = $this->confirmMatch();

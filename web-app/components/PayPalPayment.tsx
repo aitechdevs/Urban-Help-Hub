@@ -11,7 +11,7 @@ export type PayPalPaymentSummary = {
   total_amount: string | number;
   customer_confirmed_at?: string | null;
   status: string;
-  installments?: { stage: string; amount_minor: number; status: string }[];
+  installments?: { stage: string; amount_minor: number; status: string; has_order?: number | string }[];
 };
 
 function headers() {
@@ -71,15 +71,43 @@ export default function PayPalPayment({ payment }: { payment: PayPalPaymentSumma
     }
   }
 
-  const depositPaid = payment.installments?.some((item) => item.stage === "commitment" && item.status === "completed");
+  const installments = payment.installments ?? [];
+  const commitment = installments.find((item) => item.stage === "commitment");
+  const balance = installments.find((item) => item.stage === "balance");
+  const full = installments.find((item) => item.stage === "full");
+  const checkoutAvailable = !["blocked", "refunded", "failed", "paid"].includes(payment.status);
+  const canPayFull = checkoutAvailable && payment.status === "pending" && installments.length === 2
+    && installments.every((item) => item.status === "pending" && Number(item.has_order) === 0);
+  const actions = [
+    ...(checkoutAvailable && (canPayFull || full?.status === "pending")
+      ? [{ stage: "full", label: full ? "Continue full payment" : "Pay 100% upfront" }] : []),
+    ...(checkoutAvailable && !full && commitment?.status === "pending"
+      ? [{ stage: "commitment", label: "Pay 50% commitment" }] : []),
+    ...(checkoutAvailable && balance?.status === "pending" && commitment?.status === "completed" && payment.customer_confirmed_at
+      ? [{ stage: "balance", label: "Pay remaining balance" }] : []),
+  ];
+  const summaries = full
+    ? [{ label: "Full payment", item: full }]
+    : [{ label: "Commitment", item: commitment }, { label: "Final balance", item: balance }];
+
   return <div className="mt-3 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">
     <p className="font-black">PayPal · {payment.status.replaceAll("_", " ")}</p>
-    <p className="mt-1">Agreed total: {formatMoney(payment.total_amount, payment.currency)}. Pay 50% to commit and the remainder after confirming completion.</p>
+    <p className="mt-1">Agreed total: {formatMoney(payment.total_amount, payment.currency)}.</p>
+    {canPayFull && <p className="mt-1">Pay in full upfront or pay 50% now and the balance after confirming completion.</p>}
     <p className="mt-1">The helper receives 60%. The platform covers PayPal fees and applicable taxes from its 40%. Earnings stay held until customer confirmation, full payment and admin release.</p>
-    <div className="mt-3 flex flex-wrap gap-3">{payment.installments?.map((item) => <div key={item.stage}>
-      <p>{item.stage === "commitment" ? "Commitment" : "Final balance"}: {formatMoney(item.amount_minor / 100, payment.currency)} · {item.status}</p>
-      {item.status === "pending" && !["blocked", "refunded", "failed"].includes(payment.status) && (item.stage === "commitment" || (depositPaid && payment.customer_confirmed_at)) && <button type="button" disabled={busy} onClick={() => pay(item.stage)} className="mt-2 rounded-xl bg-blue-900 px-4 py-2 font-bold text-white disabled:opacity-50">{busy ? "Processing…" : `Pay ${item.stage === "commitment" ? "commitment" : "balance"} with PayPal`}</button>}
-    </div>)}</div>
+    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+      {summaries.map(({ label, item }) => item && <p key={label}><strong>{label}:</strong> {formatMoney(item.amount_minor / 100, payment.currency)} · {item.status}</p>)}
+    </div>
+    {actions.length > 0 && <div className={`mt-3 grid gap-2 ${actions.length > 1 ? "sm:grid-cols-2" : ""}`}>
+      {actions.map(({ stage, label }) => <button key={stage} type="button" disabled={busy} onClick={() => pay(stage)}
+        className="inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl bg-blue-900 px-4 py-2 font-bold text-white transition-colors hover:bg-blue-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-900 disabled:cursor-not-allowed disabled:opacity-50">
+        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="h-5 w-5 shrink-0">
+          <rect x="3" y="5" width="18" height="14" rx="2" />
+          <path d="M3 10h18M7 15h4" strokeLinecap="round" />
+        </svg>
+        <span>{busy ? "Processing…" : `${label} with PayPal`}</span>
+      </button>)}
+    </div>}
     {message && <p ref={errorRef} tabIndex={-1} role="alert" className="mt-3 text-red-700">{message}</p>}
   </div>;
 }

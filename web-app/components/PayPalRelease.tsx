@@ -9,7 +9,7 @@ export default function PayPalRelease({ id, status, eligible, submitted, onActio
   const [verified, setVerified] = useState(false);
   const [tax, setTax] = useState("");
   if (status === "pending") return <div className="space-y-2">
-    <p className="text-xs text-slate-500">Release requires customer completion confirmation and both verified PayPal payments.</p>
+    <p className="text-xs text-slate-500">Release requires customer completion confirmation and the full verified PayPal payment.</p>
     <label className="block text-sm">Applicable tax absorbed by platform (task currency)
       <input type="number" min="0" step="0.01" value={tax} onChange={(event) => setTax(event.target.value)} className="ml-2 w-28 rounded-lg border p-2" placeholder="0.00" />
     </label>

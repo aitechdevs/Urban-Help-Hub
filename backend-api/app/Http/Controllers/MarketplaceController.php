@@ -84,7 +84,8 @@ class MarketplaceController extends Controller
 
             if ($task->payment?->provider === 'paypal') {
                 $task->payment->installments = DB::table('payment_installments')
-                    ->where('payment_id', $task->payment->id)->get(['stage', 'amount_minor', 'status']);
+                    ->where('payment_id', $task->payment->id)->where('status', '!=', 'superseded')
+                    ->get(['stage', 'amount_minor', 'status', DB::raw('CASE WHEN paypal_order_id IS NULL THEN 0 ELSE 1 END AS has_order')]);
             }
             $task->can_edit = !$task->payment && in_array($task->status, [
                 'draft', 'pending_approval', 'rejected', 'open', 'awaiting_confirmation', 'scheduled',
