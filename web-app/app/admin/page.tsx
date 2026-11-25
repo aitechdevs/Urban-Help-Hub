@@ -143,6 +143,46 @@ function clearAuth() {
   localStorage.removeItem("urbanhelphub_user");
 }
 
+class AdminRequestError extends Error {
+  constructor(readonly status: number, message: string) {
+    super(message);
+  }
+}
+
+async function loadAdminResource<T>(
+  path: string,
+  label: string,
+  token: string,
+  signal: AbortSignal,
+): Promise<T> {
+  try {
+    const response = await fetch(`${API_URL}/admin/${path}`, {
+      headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
+      cache: "no-store",
+      signal,
+    });
+
+    if (!response.ok) {
+      throw new AdminRequestError(response.status, `Could not load ${label} (HTTP ${response.status}).`);
+    }
+
+    const result = await response.json();
+    if (result?.success === false || result?.data == null) {
+      throw new Error(`The server returned an unexpected response for ${label}.`);
+    }
+
+    return result.data;
+  } catch (error) {
+    if (signal.aborted) {
+      throw new Error(`Timed out while loading ${label}. Please try again.`);
+    }
+    if (error instanceof TypeError || error instanceof SyntaxError) {
+      throw new Error(`Could not read ${label} from the server. Please try again.`);
+    }
+    throw error;
+  }
+}
+
 function Icon({
   name,
   className = "h-5 w-5",
@@ -351,13 +391,6 @@ export default function AdminDashboardPage() {
 
   const loadAdminData = useCallback(
     async (showRefresh = false) => {
-      const token = getToken();
-
-      if (!token) {
-        router.replace("/login");
-        return;
-      }
-
       if (showRefresh) {
         setRefreshing(true);
       } else {
@@ -367,92 +400,32 @@ export default function AdminDashboardPage() {
       setError("");
 
       try {
-        const headers = {
-          Accept: "application/json",
-          Authorization: `Bearer ${token}`,
-        };
+        const token = getToken();
+        if (!token) {
+          router.replace("/login");
+          return;
+        }
 
-        const [dashboardResponse, helpersResponse, paymentsResponse, tasksResponse] =
-          await Promise.all([
-            fetch(`${API_URL}/admin/dashboard`, {
-              headers,
-              cache: "no-store",
-            }),
-            fetch(
-              `${API_URL}/admin/helpers?status=${filter}`,
-              {
-                headers,
-                cache: "no-store",
-              }
-            ),
-            fetch(`${API_URL}/admin/payments`, {
-              headers,
-              cache: "no-store",
-            }),
-            fetch(`${API_URL}/admin/tasks?status=pending_approval`, {
-              headers,
-              cache: "no-store",
-            }),
-          ]);
+        const signal = AbortSignal.timeout(15000);
+        const [dashboardData, helpersData, paymentsData, tasksData] = await Promise.all([
+          loadAdminResource<DashboardData>("dashboard", "dashboard summary", token, signal),
+          loadAdminResource<Helper[]>(`helpers?status=${filter}`, "helper applications", token, signal),
+          loadAdminResource<PaymentRecord[]>("payments", "payment activity", token, signal),
+          loadAdminResource<AdminTask[]>("tasks?status=pending_approval", "task approvals", token, signal),
+        ]);
 
-        if (
-          dashboardResponse.status === 401 ||
-          helpersResponse.status === 401 ||
-          paymentsResponse.status === 401
-          || tasksResponse.status === 401
-        ) {
+        setDashboard(dashboardData);
+        setHelpers(helpersData);
+        setPayments(paymentsData);
+        setTasks(tasksData);
+      } catch (err) {
+        if (err instanceof AdminRequestError && err.status === 401) {
           clearAuth();
           router.replace("/login");
           return;
         }
 
-        if (
-          dashboardResponse.status === 403 ||
-          helpersResponse.status === 403 ||
-          paymentsResponse.status === 403
-          || tasksResponse.status === 403
-        ) {
-          router.replace("/dashboard");
-          return;
-        }
-
-        const dashboardResult = await dashboardResponse.json();
-        const helpersResult = await helpersResponse.json();
-        const paymentsResult = await paymentsResponse.json();
-        const tasksResult = await tasksResponse.json();
-
-        if (!dashboardResponse.ok) {
-          throw new Error(
-            dashboardResult.message ||
-              "Unable to load the Admin dashboard."
-          );
-        }
-
-        if (!helpersResponse.ok) {
-          throw new Error(
-            helpersResult.message ||
-              "Unable to load Helper applications."
-          );
-        }
-
-        if (!paymentsResponse.ok) {
-          throw new Error(paymentsResult.message || "Unable to load payment activity.");
-        }
-
-        if (!tasksResponse.ok) {
-          throw new Error(tasksResult.message || "Unable to load task approvals.");
-        }
-
-        setDashboard(dashboardResult.data);
-        setHelpers(helpersResult.data || []);
-        setPayments(paymentsResult.data || []);
-        setTasks(tasksResult.data || []);
-      } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Unable to load the Admin dashboard."
-        );
+        setError(err instanceof Error ? err.message : "Unable to load the Admin dashboard.");
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -496,6 +469,7 @@ export default function AdminDashboardPage() {
       if (token) {
         await fetch(`${API_URL}/logout`, {
           method: "POST",
+          signal: AbortSignal.timeout(5000),
           headers: {
             Accept: "application/json",
             Authorization: `Bearer ${token}`,
@@ -643,6 +617,14 @@ export default function AdminDashboardPage() {
             >
               <Icon name="refresh" className="h-4 w-4" />
               Try again
+            </button>
+            <button
+              type="button"
+              onClick={logout}
+              disabled={loggingOut}
+              className="mt-3 block w-full rounded-xl px-5 py-2 text-sm font-semibold text-[#082f5b] underline"
+            >
+              {loggingOut ? "Signing out…" : "Sign out"}
             </button>
           </div>
         </div>

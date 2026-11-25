@@ -44,7 +44,8 @@ class AdministratorManagementTest extends TestCase
             'status' => 'active',
             'password' => self::OWNER_PASSWORD,
         ]);
-        $this->withToken($owner->createToken('test')->plainTextToken);
+        $ownerToken = $owner->createToken('test')->plainTextToken;
+        $this->withToken($ownerToken);
 
         $input = [
             'name' => 'Operations Admin',
@@ -81,8 +82,19 @@ class AdministratorManagementTest extends TestCase
         $this->putJson(self::URL.'/'.$id, $update)->assertOk()->assertJsonPath('data.status', 'active');
         $this->putJson(self::URL.'/'.$id, $update)->assertOk();
 
-        $this->postJson('/api/login', $credentials)->assertOk();
+        $adminToken = $this->postJson('/api/login', $credentials)->assertOk()->json('data.token');
         $this->assertSame(1, $admin->tokens()->count());
+
+        $this->app['auth']->forgetGuards();
+        $this->withToken($adminToken);
+        $this->getJson('/api/admin/dashboard')->assertOk()->assertJsonPath('data.admin.id', $id);
+        $this->getJson('/api/admin/helpers?status=pending')->assertOk();
+        $this->getJson('/api/admin/payments')->assertOk();
+        $this->getJson('/api/admin/tasks?status=pending_approval')->assertOk();
+        $this->postJson(self::URL, $input)->assertForbidden();
+
+        $this->app['auth']->forgetGuards();
+        $this->withToken($ownerToken);
         $this->putJson(self::URL.'/'.$id, array_replace($update, ['status' => 'suspended']))
             ->assertOk()->assertJsonPath('data.status', 'suspended');
         $this->assertSame(0, $admin->tokens()->count());
