@@ -712,6 +712,7 @@ export default function AdminDashboardPage() {
             </p>
 
             {isSuperAdmin && <button type="button" onClick={() => router.push("/admin/administrators")} className="mt-3 block w-full rounded-xl bg-[#eef4f8] px-4 py-3 text-left text-sm font-bold text-[#082f5b]">Create Admin User</button>}
+            {isSuperAdmin && <a href="/admin/activity/" className="mt-3 block rounded-xl bg-[#eef4f8] px-4 py-3 text-sm font-bold text-[#082f5b]">Activity log</a>}
             <button
               type="button"
               onClick={logout}
@@ -773,11 +774,18 @@ export default function AdminDashboardPage() {
             />
 
             {isSuperAdmin && (
-              <SidebarButton
-                icon="users"
-                label="Create Admin User"
-                onClick={() => router.push("/admin/administrators")}
-              />
+              <>
+                <SidebarButton
+                  icon="users"
+                  label="Administrator management"
+                  onClick={() => router.push("/admin/administrators")}
+                />
+                <SidebarButton
+                  icon="shield"
+                  label="Activity log"
+                  onClick={() => window.location.assign("/admin/activity/")}
+                />
+              </>
             )}
           </div>
 
@@ -791,7 +799,7 @@ export default function AdminDashboardPage() {
             </p>
 
             <p className="mt-1 text-xs leading-5 text-slate-500">
-              Admin actions are checked again by the Laravel API.
+              UrbanHelpHub verifies your access for each Admin action.
             </p>
           </div>
         </aside>

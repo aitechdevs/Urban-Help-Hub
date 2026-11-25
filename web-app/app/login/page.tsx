@@ -256,7 +256,7 @@ export default function LoginPage() {
 
       /*
        * Do not trust only the role returned by the login
-       * response. Ask Laravel who owns this token.
+       * response. Verify the account associated with this token.
        */
       const verificationResponse = await fetch(
         `${API_URL}/user`,

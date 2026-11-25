@@ -162,7 +162,7 @@ export default function AdministratorManagement() {
       if (response.status === 401) { router.replace("/login"); return; }
       const result = await readResult(response);
       const rows = Array.isArray(result.data) ? result.data : (result.data?.administrators || result.data?.users || null);
-      if (!Array.isArray(rows)) throw new Error("Unexpected administrators response from Laravel.");
+      if (!Array.isArray(rows)) throw new Error("UrbanHelpHub returned an unexpected response for administrator accounts.");
       setAccounts(rows.filter((row: AdminAccount) => row.role === "admin" || row.role === "super_admin"));
       setAuditEvents(result.audit_events ?? []);
       setBackendReady(true);
@@ -185,7 +185,7 @@ export default function AdministratorManagement() {
       return;
     }
     if (password.length < 14) {
-      setError("Laravel requires a temporary password of at least 14 characters.");
+      setError("Use a temporary password of at least 14 characters.");
       return;
     }
     if (!currentPassword) {
@@ -220,7 +220,10 @@ export default function AdministratorManagement() {
       <header className="bg-[#082f5b] px-5 py-5 text-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
           <span className="font-bold">UrbanHelpHub · Super Admin</span>
-          <a className="text-sm font-semibold underline" href="/admin">Back to Admin Dashboard</a>
+          <nav className="flex flex-wrap gap-x-5 gap-y-2 text-sm font-semibold underline">
+            <a href="/admin/activity/">Activity log</a>
+            <a href="/admin/">Admin dashboard</a>
+          </nav>
         </div>
       </header>
       <div className="mx-auto max-w-6xl px-5 py-9">
@@ -233,7 +236,7 @@ export default function AdministratorManagement() {
         </div>
         {notice && <p role="status" className="mb-4 rounded-xl bg-emerald-50 p-4 text-sm font-semibold text-emerald-800">{notice}</p>}
         {error && <p ref={errorRef} tabIndex={-1} role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</p>}
-        {checking ? <p>Verifying Super Admin access and Laravel endpoints…</p> : (
+        {checking ? <p>Verifying Super Admin access…</p> : (
           <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <h2 className="text-xl font-bold">Create Admin User</h2>
