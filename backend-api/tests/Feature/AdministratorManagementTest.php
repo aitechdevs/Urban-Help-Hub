@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
@@ -93,7 +95,14 @@ class AdministratorManagementTest extends TestCase
         $this->postJson(self::URL, $input)->assertUnprocessable()->assertJsonValidationErrors('email');
 
         $credentials = ['email' => $admin->email, 'password' => self::ADMIN_PASSWORD];
-        $this->postJson('/api/login', $credentials)->assertForbidden();
+        $this->postJson('/api/login', $credentials)->assertForbidden()
+            ->assertJsonPath('code', 'email_confirmation_required');
+        $email = DB::table('approval_email_outbox')->where('user_id', $id)->first();
+        $this->assertSame('ops@example.test', $email->recipient);
+        preg_match('/#token=([a-f0-9]{64})/', Crypt::decryptString($email->body), $match);
+        $this->postJson('/api/auth/email/confirm', ['token' => $match[1]])
+            ->assertOk()->assertJsonPath('activation_pending', true);
+        $this->postJson('/api/login', $credentials)->assertForbidden()->assertJsonMissingPath('code');
         $update = ['current_password' => self::OWNER_PASSWORD, 'status' => 'active'];
         $this->putJson(self::URL.'/'.$id, array_replace($update, ['current_password' => 'invalid']))
             ->assertUnprocessable()->assertJsonValidationErrors('current_password');

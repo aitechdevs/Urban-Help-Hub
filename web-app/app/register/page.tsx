@@ -10,17 +10,7 @@ type AccountRole = "customer" | "helper";
 type RegisterResponse = {
   success: boolean;
   message?: string;
-  data?: {
-    user: {
-      id: number;
-      name: string;
-      email: string;
-      phone?: string | null;
-      role: AccountRole;
-      status: string;
-    };
-    token: string;
-  };
+  data?: { email_confirmation_required: boolean };
   errors?: Record<string, string[]>;
 };
 
@@ -104,7 +94,7 @@ export default function RegisterPage() {
       const result: RegisterResponse =
         await response.json();
 
-      if (!response.ok || !result.success || !result.data) {
+      if (!response.ok || !result.success || !result.data?.email_confirmation_required) {
         if (result.errors) {
           const firstError = Object.values(
             result.errors
@@ -121,34 +111,11 @@ export default function RegisterPage() {
         );
       }
 
-      /*
-       * DEVELOPMENT AUTH STORAGE
-       *
-       * This lets us test the complete application flow.
-       * Before production, web authentication will be moved
-       * to secure HttpOnly cookie/session authentication.
-       */
-
-      window.sessionStorage.setItem(
-        "urbanhelphub_token",
-        result.data.token
-      );
-
-      window.sessionStorage.setItem(
-        "urbanhelphub_user",
-        JSON.stringify(result.data.user)
-      );
-
-      if (role === "helper") {
-        router.push("/become-a-helper");
-        return;
-      }
-
-      router.push("/dashboard");
+      router.replace("/confirm-email/?sent=1");
     } catch (err) {
       if (err instanceof TypeError) {
         setError(
-          "Unable to connect to UrbanHelpHub. Please make sure the local API is running."
+          "Unable to connect to UrbanHelpHub. Please try again."
         );
       } else if (err instanceof Error) {
         setError(err.message);

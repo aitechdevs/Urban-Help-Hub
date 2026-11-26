@@ -2,11 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use App\Support\TaskMatching;
-
 use App\Models\User;
+use App\Services\AccountEmailConfirmation;
+use App\Support\TaskMatching;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -43,8 +44,13 @@ class AuthController extends Controller
         'US' => ['en'],
     ];
 
-    public function register(Request $request): JsonResponse
+    public function register(Request $request, AccountEmailConfirmation $confirmation): JsonResponse
     {
+        $email = $request->input('email');
+        if (is_string($email)) {
+            $request->merge(['email' => strtolower(trim($email))]);
+        }
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
 
@@ -75,28 +81,28 @@ class AuthController extends Controller
             ],
         ]);
 
-        $user = User::create([
-            'name' => $validated['name'],
-            'email' => strtolower($validated['email']),
-            'phone' => $validated['phone'] ?? null,
-            'password' => $validated['password'],
-            'role' => $validated['role'],
-            'status' => 'active',
-        ]);
+        $user = DB::transaction(function () use ($validated, $confirmation): User {
+            $user = User::create([
+                'name' => $validated['name'],
+                'email' => $validated['email'],
+                'phone' => $validated['phone'] ?? null,
+                'password' => $validated['password'],
+                'role' => $validated['role'],
+                'status' => 'active',
+            ]);
+            $confirmation->start($user);
 
-        $token = $user->createToken('urbanhelphub-web')->plainTextToken;
+            return $user;
+        }, 3);
 
         return response()->json([
             'success' => true,
-            'message' => 'Account created successfully.',
-            'data' => [
-                'user' => $user,
-                'token' => $token,
-            ],
+            'message' => 'Account created. Check your email to confirm your address before signing in.',
+            'data' => ['email_confirmation_required' => true, 'user' => $user],
         ], 201);
     }
 
-    public function login(Request $request): JsonResponse
+    public function login(Request $request, AccountEmailConfirmation $confirmation): JsonResponse
     {
         $validated = $request->validate([
             'email' => [
@@ -121,6 +127,14 @@ class AuthController extends Controller
                     'The provided email address or password is incorrect.',
                 ],
             ]);
+        }
+
+        if ($confirmation->isPending($user)) {
+            return response()->json([
+                'success' => false,
+                'code' => 'email_confirmation_required',
+                'message' => 'Confirm your email address before signing in.',
+            ], 403);
         }
 
         if ($user->status !== 'active') {

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -20,6 +20,7 @@ type User = {
 type LoginResponse = {
   success: boolean;
   message: string;
+  code?: string;
   data?: {
     user: User;
     token: string;
@@ -203,6 +204,17 @@ export default function LoginPage() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [confirmationRequired, setConfirmationRequired] = useState(false);
+  const [confirmationNotice, setConfirmationNotice] = useState("");
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const status = new URLSearchParams(window.location.search).get("confirmed");
+      if (status === "1") setConfirmationNotice("Email confirmed. Sign in to continue.");
+      if (status === "pending") setConfirmationNotice("Email confirmed. You can sign in once a Super Admin activates your account.");
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   async function handleSubmit(
     event: FormEvent<HTMLFormElement>
@@ -214,6 +226,7 @@ export default function LoginPage() {
     }
 
     setError("");
+    setConfirmationRequired(false);
 
     if (!email.trim() || !password) {
       setError(
@@ -255,6 +268,7 @@ export default function LoginPage() {
         !result.success ||
         !result.data
       ) {
+        if (result.code === "email_confirmation_required") setConfirmationRequired(true);
         if (result.errors?.email?.[0]) {
           throw new Error(result.errors.email[0]);
         }
@@ -492,6 +506,9 @@ export default function LoginPage() {
               </p>
             </div>
 
+            {confirmationNotice && (
+              <p role="status" className="mt-6 rounded-xl bg-emerald-50 p-4 text-sm font-semibold text-emerald-800">{confirmationNotice}</p>
+            )}
             {error && (
               <div
                 role="alert"
@@ -501,7 +518,12 @@ export default function LoginPage() {
                   !
                 </span>
 
-                <span>{error}</span>
+                <div>
+                  <p>{error}</p>
+                  {confirmationRequired && (
+                    <Link href="/confirm-email/" className="mt-1 inline-block underline">Request a new confirmation link</Link>
+                  )}
+                </div>
               </div>
             )}
 

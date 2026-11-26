@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use RuntimeException;
@@ -18,8 +19,19 @@ class ApprovalEmailDelivery
                 })->orderBy('id')->lockForUpdate()->first();
             if (!$row) return null;
             $user = DB::table('users')->where('id', $row->user_id)->first();
-            $requiredStatus = $row->event_type === 'helper_account_suspended' ? 'suspended' : 'active';
-            $eligible = $user && $user->email === $row->recipient && $user->status === $requiredStatus;
+            $confirmation = $row->event_type === AccountEmailConfirmation::EVENT_TYPE;
+            $eligibleStatuses = match ($row->event_type) {
+                AccountEmailConfirmation::EVENT_TYPE => ['active', 'suspended'],
+                'helper_account_suspended' => ['suspended'],
+                default => ['active'],
+            };
+            $eligible = $user && $user->email === $row->recipient && in_array($user->status, $eligibleStatuses, true);
+            if ($eligible && $confirmation) {
+                $digest = substr($row->event_key, strlen(AccountEmailConfirmation::EVENT_TYPE) + 1);
+                $eligible = DB::table('account_email_confirmations')->where('user_id', $row->user_id)
+                    ->where('email', $row->recipient)->where('token_digest', $digest)
+                    ->whereNull('confirmed_at')->where('expires_at', '>', now())->exists();
+            }
             if ($eligible && $row->event_type === 'helper_verified') {
                 $eligible = DB::table('profiles')->where('user_id', $row->user_id)->value('verification_status') === 'verified';
             }
@@ -37,7 +49,10 @@ class ApprovalEmailDelivery
         if (!$mail) return null;
         if (isset($mail->skipped)) return 'skipped';
         try {
-            $accepted = Mail::raw($mail->body, function ($message) use ($mail) {
+            $body = $mail->event_type === AccountEmailConfirmation::EVENT_TYPE
+                ? Crypt::decryptString($mail->body)
+                : $mail->body;
+            $accepted = Mail::raw($body, function ($message) use ($mail) {
                 $message->to($mail->recipient)->subject($mail->subject);
             });
             if ($accepted === null) throw new RuntimeException('The configured mailer did not accept the message.');

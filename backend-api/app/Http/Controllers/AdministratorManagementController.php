@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Services\AccountEmailConfirmation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -32,7 +33,7 @@ class AdministratorManagementController extends Controller
         ]);
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, AccountEmailConfirmation $confirmation): JsonResponse
     {
         if (is_string($request->input('email'))) {
             $request->merge(['email' => strtolower(trim($request->input('email')))]);
@@ -52,7 +53,7 @@ class AdministratorManagementController extends Controller
             ],
         ]);
 
-        $admin = DB::transaction(function () use ($request, $validated) {
+        $admin = DB::transaction(function () use ($request, $validated, $confirmation) {
             $admin = User::create([
                 'name' => $validated['name'],
                 'email' => $validated['email'],
@@ -60,6 +61,7 @@ class AdministratorManagementController extends Controller
                 'role' => 'admin',
                 'status' => 'suspended',
             ]);
+            $confirmation->start($admin);
             $this->record($request->user(), $admin, 'created');
 
             return $admin;

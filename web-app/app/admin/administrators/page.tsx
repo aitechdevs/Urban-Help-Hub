@@ -209,7 +209,7 @@ export default function AdministratorManagement() {
       if (response.status === 401) { router.replace("/login"); return; }
       await readResult(response);
       setPassword(""); setPasswordConfirmation(""); setCurrentPassword("");
-      setNotice("Administrator created in suspended status. Review the account and activate it when ready.");
+      setNotice("Administrator created in suspended status. A confirmation email is queued. The Administrator must confirm their address, and you must activate the account before they can sign in.");
       await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to create administrator.");
