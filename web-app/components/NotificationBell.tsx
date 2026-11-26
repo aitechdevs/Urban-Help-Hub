@@ -158,7 +158,7 @@ export default function NotificationBell({ dashboard }: { dashboard: string }) {
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="relative grid h-10 w-10 place-items-center rounded-full border border-slate-200 bg-white text-xl text-[#082f5b] transition hover:bg-slate-50"
+        className="relative grid h-11 w-11 place-items-center rounded-full border border-slate-200 bg-white text-xl text-[#082f5b] transition hover:bg-slate-50"
         aria-expanded={open}
         aria-label={`Notifications${unread ? `, ${unread} unread` : ""}`}
       >
@@ -171,7 +171,7 @@ export default function NotificationBell({ dashboard }: { dashboard: string }) {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-12 z-[80] w-[min(92vw,380px)] overflow-hidden max-sm:fixed max-sm:right-4 max-sm:top-16 max-sm:w-[calc(100vw-2rem)] rounded-2xl border border-slate-200 bg-white text-left shadow-2xl">
+        <div className="absolute right-0 top-12 z-[80] w-[min(92vw,380px)] overflow-hidden max-md:fixed max-md:inset-x-4 max-md:top-full max-md:mt-2 max-md:w-auto rounded-2xl border border-slate-200 bg-white text-left shadow-2xl">
           <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
             <div>
               <p className="font-black text-[#082f5b]">Notifications</p>
@@ -179,7 +179,7 @@ export default function NotificationBell({ dashboard }: { dashboard: string }) {
             </div>
             {unread > 0 && <button type="button" onClick={markAllRead} className="text-xs font-bold text-green-700 hover:underline">Mark all read</button>}
           </div>
-          <div className="max-h-[420px] overflow-y-auto">
+          <div className="max-h-[min(26rem,calc(100dvh-9rem))] overflow-y-auto overscroll-contain">
             {loading ? (
               <p className="p-6 text-center text-sm text-slate-500">Loading notifications…</p>
             ) : items.length === 0 ? (

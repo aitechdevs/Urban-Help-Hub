@@ -256,17 +256,17 @@ export default function CustomerDashboard() {
       {/* HEADER */}
 
       <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur">
-        <div className="mx-auto flex h-[76px] max-w-7xl items-center justify-between gap-5 px-5 lg:px-8">
+        <div className="mx-auto flex h-[76px] max-w-7xl items-center justify-between gap-3 px-4 sm:px-5 lg:px-8">
 
-          <Link href="/">
+          <Link href="/" className="min-w-0">
             <img
               src="/UrbanHelpHub-logo.png"
               alt="UrbanHelpHub"
-              className="h-11 w-auto max-w-[215px] object-contain sm:h-12"
+              className="h-auto w-36 object-contain sm:w-44 xl:w-48"
             />
           </Link>
 
-          <nav className="hidden items-center gap-7 text-sm font-bold text-slate-600 md:flex">
+          <nav className="hidden items-center gap-5 text-sm font-bold text-slate-600 lg:flex">
             <a
               href="/dashboard"
               className="text-[var(--navy)]"
@@ -289,9 +289,9 @@ export default function CustomerDashboard() {
             </a>
           </nav>
 
-          <div className="flex items-center gap-2 md:gap-4">
+          <div className="flex shrink-0 items-center gap-2 lg:gap-4">
             <NotificationBell dashboard="/dashboard/" />
-            <div className="hidden items-center gap-3 md:flex">
+            <div className="hidden items-center gap-3 lg:flex">
               <RegionSelector />
               <a
                 href="/post-a-task"
@@ -313,7 +313,7 @@ export default function CustomerDashboard() {
             <button
               type="button"
               onClick={() => setMenuOpen((value) => !value)}
-              className="grid h-11 w-11 place-items-center rounded-xl border border-slate-200 text-2xl text-[var(--navy)] md:hidden"
+              className="grid h-11 w-11 place-items-center rounded-xl border border-slate-200 text-2xl text-[var(--navy)] lg:hidden"
               aria-label="Open menu"
             >
               ☰
@@ -429,7 +429,7 @@ export default function CustomerDashboard() {
 
         {/* MAIN CONTENT */}
 
-        <section className="mt-6 grid gap-6 lg:grid-cols-[1.5fr_.75fr]">
+        <section className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,.75fr)]">
 
           {/* TASK AREA */}
 

@@ -637,8 +637,10 @@ export default function AdminDashboardPage() {
   const stats = dashboard.stats;
   const isSuperAdmin = dashboard.admin.role === "super_admin";
   function moveToSection(id: string) {
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
     setMobileMenu(false);
+    window.requestAnimationFrame(() => {
+      document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   }
   function selectHelpers(next: "all" | "pending" | "verified" | "active") {
     setSearch("");
@@ -646,32 +648,95 @@ export default function AdminDashboardPage() {
     moveToSection("helper-review-queue");
   }
 
+  const workspaceNavigation = (
+    <nav className="grid grid-cols-1 gap-1 min-[380px]:grid-cols-2 lg:grid-cols-1" aria-label="Admin workspace">
+      <SidebarButton
+        icon="dashboard"
+        label={t("dashboard")}
+        active
+        onClick={() => {
+          setMobileMenu(false);
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        }}
+      />
+
+      <SidebarButton
+        icon="helpers"
+        label={t("helpers")}
+        badge={stats.pending_helpers}
+        onClick={() => selectHelpers("pending")}
+      />
+
+      <SidebarButton
+        icon="customers"
+        label={t("customers")}
+        onClick={() => moveToSection("admin-customers")}
+      />
+
+      <SidebarButton
+        icon="tasks"
+        label="Tasks"
+        badge={stats.pending_tasks}
+        onClick={() => moveToSection("task-approvals")}
+      />
+
+      <SidebarButton
+        icon="payments"
+        label={t("payments")}
+        badge={stats.pending_payments + stats.pending_payouts}
+        onClick={() => moveToSection("payments")}
+      />
+
+      <SidebarButton
+        icon="shield"
+        label="Verification"
+        badge={stats.pending_services}
+        onClick={() => moveToSection("admin-verification")}
+      />
+
+      {isSuperAdmin && (
+        <>
+          <SidebarButton
+            icon="users"
+            label="Administrator management"
+            onClick={() => router.push("/admin/administrators")}
+          />
+          <SidebarButton
+            icon="shield"
+            label="Activity log"
+            onClick={() => window.location.assign("/admin/activity/")}
+          />
+        </>
+      )}
+    </nav>
+  );
+
   return (
     <main className="min-h-screen bg-[#f6f8fb] text-slate-900">
       <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-[1500px] items-center justify-between px-5 py-4 sm:px-7">
-          <div className="flex items-center gap-8">
+        <div className="mx-auto flex max-w-[1500px] items-center justify-between gap-3 px-4 py-3 sm:px-7 sm:py-4">
+          <div className="flex min-w-0 items-center gap-4">
             <button
               type="button"
               onClick={() => router.push("/admin")}
-              className="cursor-pointer"
+              className="min-w-0 cursor-pointer"
               aria-label="Admin dashboard"
             >
               <img
                 src="/UrbanHelpHub-logo.png"
                 alt="UrbanHelpHub"
-                className="h-9 w-auto sm:h-10"
+                className="h-auto max-h-10 w-36 sm:w-44"
               />
             </button>
 
-            <span className="hidden rounded-full bg-[#082f5b] px-3 py-1 text-xs font-bold uppercase tracking-wider text-white md:inline-flex">
+            <span className="hidden rounded-full bg-[#082f5b] px-3 py-1 text-xs font-bold uppercase tracking-wider text-white xl:inline-flex">
               {dashboard.admin.role === "super_admin" ? "Super Admin" : "Admin"}
             </span>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-4">
+          <div className="flex shrink-0 items-center gap-2 sm:gap-4">
             <NotificationBell dashboard="/admin/" />
-            <div className="hidden items-center gap-4 sm:flex">
+            <div className="hidden items-center gap-4 lg:flex">
               <RegionSelector />
               <div className="text-right">
                 <p className="text-sm font-bold text-[#082f5b]">
@@ -701,8 +766,10 @@ export default function AdminDashboardPage() {
             <button
               type="button"
               onClick={() => setMobileMenu((value) => !value)}
-              className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-slate-200 text-[#082f5b] transition hover:bg-slate-50 sm:hidden"
-              aria-label="Open Admin menu"
+              className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-xl border border-slate-200 text-[#082f5b] transition hover:bg-slate-50 lg:hidden"
+              aria-label="Admin menu"
+              aria-expanded={mobileMenu}
+              aria-controls="compact-admin-menu"
             >
               <Icon name="menu" />
             </button>
@@ -710,13 +777,9 @@ export default function AdminDashboardPage() {
         </div>
 
         {mobileMenu && (
-          <div className="border-t border-slate-100 bg-white px-5 py-4 sm:hidden">
-            <p className="font-bold text-[#082f5b]">
-              {dashboard.admin.name}
-            </p>
-
-            {isSuperAdmin && <button type="button" onClick={() => router.push("/admin/administrators")} className="mt-3 block w-full rounded-xl bg-[#eef4f8] px-4 py-3 text-left text-sm font-bold text-[#082f5b]">Create Admin User</button>}
-            {isSuperAdmin && <a href="/admin/activity/" className="mt-3 block rounded-xl bg-[#eef4f8] px-4 py-3 text-sm font-bold text-[#082f5b]">Activity log</a>}
+          <div id="compact-admin-menu" className="max-h-[calc(100dvh-5rem)] overflow-y-auto border-t border-slate-100 bg-white px-4 py-4 lg:hidden">
+            <p className="mb-3 font-bold text-[#082f5b]">{dashboard.admin.name}</p>
+            {workspaceNavigation}
             <button
               type="button"
               onClick={logout}
@@ -735,63 +798,7 @@ export default function AdminDashboardPage() {
             Workspace
           </p>
 
-          <div className="space-y-1">
-            <SidebarButton
-              icon="dashboard"
-              label={t("dashboard")}
-              active
-              onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-            />
-
-            <SidebarButton
-              icon="helpers"
-              label={t("helpers")}
-              badge={stats.pending_helpers}
-              onClick={() => selectHelpers("pending")}
-            />
-
-            <SidebarButton
-              icon="customers"
-              label={t("customers")}
-              onClick={() => moveToSection("admin-customers")}
-            />
-
-            <SidebarButton
-              icon="tasks"
-              label="Tasks"
-              badge={stats.pending_tasks}
-              onClick={() => document.getElementById("task-approvals")?.scrollIntoView({ behavior: "smooth" })}
-            />
-
-            <SidebarButton
-              icon="payments"
-              label={t("payments")}
-              badge={stats.pending_payments + stats.pending_payouts}
-              onClick={() => document.getElementById("payments")?.scrollIntoView({ behavior: "smooth" })}
-            />
-
-            <SidebarButton
-              icon="shield"
-              label="Verification"
-              badge={stats.pending_services}
-              onClick={() => moveToSection("admin-verification")}
-            />
-
-            {isSuperAdmin && (
-              <>
-                <SidebarButton
-                  icon="users"
-                  label="Administrator management"
-                  onClick={() => router.push("/admin/administrators")}
-                />
-                <SidebarButton
-                  icon="shield"
-                  label="Activity log"
-                  onClick={() => window.location.assign("/admin/activity/")}
-                />
-              </>
-            )}
-          </div>
+          {workspaceNavigation}
 
           <div className="mt-8 rounded-2xl bg-[#eef4f8] p-4">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-[#082f5b]">
@@ -1137,15 +1144,34 @@ export default function AdminDashboardPage() {
             </section>
 
             <section id="task-approvals" className="mt-8 scroll-mt-24 rounded-3xl border border-slate-200 bg-white shadow-sm">
-              <div className="flex flex-col gap-4 border-b border-slate-100 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-7">
-                <div><div className="flex items-center gap-3"><h2 className="text-xl font-bold text-[#082f5b]">Customer task approvals</h2>{stats.pending_tasks > 0 && <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">{stats.pending_tasks} awaiting review</span>}</div><p className="mt-1 text-sm text-slate-500">Review safety, clarity, schedule and location before notifying Helpers.</p></div>
-                <Icon name="tasks" className="h-7 w-7 text-[#082f5b]" />
+              <div className="flex items-start justify-between gap-3 border-b border-slate-100 p-4 sm:p-7">
+                <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h2 className="text-xl font-bold text-[#082f5b]">Customer task approvals</h2>{stats.pending_tasks > 0 && <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">{stats.pending_tasks} awaiting review</span>}</div><p className="mt-1 text-sm text-slate-500">Review safety, clarity, schedule and location before notifying Helpers.</p></div>
+                <Icon name="tasks" className="h-7 w-7 shrink-0 text-[#082f5b]" />
               </div>
               {tasks.length === 0 ? <div className="px-6 py-14 text-center"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-green-50 text-green-700"><Icon name="check" /></div><p className="mt-4 font-bold text-[#082f5b]">No tasks awaiting approval</p></div> : <div className="divide-y divide-slate-100">
-                {tasks.map((task) => <article key={task.id} id={`approval-task-${task.id}`} className="scroll-mt-28 p-5 sm:p-7">
+                {tasks.map((task) => <article key={task.id} id={`approval-task-${task.id}`} className="scroll-mt-24 p-4 sm:p-7">
                   <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-                    <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">{task.service_name}</span><span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">{statusText(task.status)}</span></div><h3 className="mt-3 text-lg font-bold text-[#082f5b]">#{task.id} · {task.title}</h3><p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">{task.description}</p><div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs font-semibold text-slate-500"><span>Customer: {task.customer_name} ({task.customer_email})</span><span>📍 {[task.address_line_1, task.city, task.province, task.postal_code].filter(Boolean).join(", ")}</span><span>📅 {task.scheduled_date || "Flexible"} {task.scheduled_start_time?.slice(0, 5) || ""}</span></div></div>
-                    {task.status === "pending_approval" && <div className="flex shrink-0 gap-2"><button type="button" disabled={busyTaskReview === task.id} onClick={() => reviewTask(task.id, "approved")} className="rounded-xl bg-[#2fad45] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">{busyTaskReview === task.id ? "Reviewing..." : "✓ Approve & publish"}</button><button type="button" disabled={busyTaskReview === task.id} onClick={() => reviewTask(task.id, "rejected")} className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-bold text-red-600 disabled:opacity-50">Reject</button></div>}
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">{task.service_name}</span>
+                        <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">{statusText(task.status)}</span>
+                      </div>
+                      <h3 className="mt-3 text-lg font-bold text-[#082f5b]">#{task.id} · {task.title}</h3>
+                      <p className="mt-2 max-w-3xl whitespace-pre-wrap text-sm leading-6 text-slate-600">{task.description}</p>
+                      <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs font-semibold text-slate-500">
+                        <span>Customer: {task.customer_name} ({task.customer_email})</span>
+                        <span>📍 {[task.address_line_1, task.city, task.province, task.postal_code].filter(Boolean).join(", ")}</span>
+                        <span>📅 {task.scheduled_date || "Flexible"} {task.scheduled_start_time?.slice(0, 5) || ""}</span>
+                      </div>
+                    </div>
+                    {task.status === "pending_approval" && (
+                      <div className="grid gap-2 min-[380px]:grid-cols-2 xl:flex xl:shrink-0">
+                        <button type="button" disabled={busyTaskReview === task.id} onClick={() => reviewTask(task.id, "approved")} className="min-h-11 rounded-xl bg-[#238f39] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">
+                          {busyTaskReview === task.id ? "Reviewing..." : "✓ Approve & publish"}
+                        </button>
+                        <button type="button" disabled={busyTaskReview === task.id} onClick={() => reviewTask(task.id, "rejected")} className="min-h-11 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-bold text-red-600 disabled:opacity-50">Reject</button>
+                      </div>
+                    )}
                   </div>
                 </article>)}
               </div>}
@@ -1170,14 +1196,14 @@ export default function AdminDashboardPage() {
 
               {payments.length === 0 ? <div className="px-6 py-14 text-center text-sm font-semibold text-slate-500">Completed-task payments will appear here.</div> : <div className="divide-y divide-slate-100">
                 {payoutFeedback && <p ref={payoutFeedbackRef} tabIndex={-1} role={payoutFeedback.success ? "status" : "alert"} className={`my-3 rounded-xl p-3 text-sm font-semibold ${payoutFeedback.success ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>{payoutFeedback.message}</p>}
-                {payments.map((payment) => <article key={payment.id} id={`payment-${payment.id}`} className="scroll-mt-28 p-5 sm:p-7">
+                {payments.map((payment) => <article key={payment.id} id={`payment-${payment.id}`} className="scroll-mt-24 p-4 sm:p-7">
                   <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2"><h3 className="font-bold text-[#082f5b]">#{payment.task_id} · {payment.task_title}</h3><StatusBadge value={payment.status} /></div>
                       <p className="mt-1 text-sm text-slate-500">{payment.customer_name} → {payment.helper_name || "Helper"} · {payment.provider}</p>
                       <div className="mt-3 flex flex-wrap gap-4 text-sm font-semibold text-slate-600"><span>Customer total: {formatMoney(payment.total_amount, payment.currency)}</span><span>CAD total: {formatMoney(payment.settlement_total_amount, "CAD")}</span><span>CAD fee: {formatMoney(payment.settlement_platform_fee, "CAD")}</span><span>CAD Helper net: {formatMoney(payment.settlement_helper_net, "CAD")}</span><span>Payout: {statusText(payment.payout_status)}</span>{payment.provider === "paypal" && <span>CAD platform net after recorded fees and tax: {formatMoney(Number(payment.settlement_platform_fee) - (Number(payment.provider_fees || 0) + Number(payment.payout_fee || 0) + Number(payment.tax_amount || 0)) * Number(payment.settlement_exchange_rate), "CAD")}</span>}</div>
                     </div>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex min-w-0 flex-wrap items-start gap-2 max-sm:w-full">
                       {payment.provider === "manual" && payment.status === "pending" && <><button type="button" disabled={busyFinance === `payments-${payment.id}`} onClick={() => updateFinance("payments", payment.id, "paid")} className="rounded-xl bg-[#2fad45] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">Mark payment paid</button><button type="button" disabled={busyFinance === `payments-${payment.id}`} onClick={() => updateFinance("payments", payment.id, "failed")} className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-bold text-red-600 disabled:opacity-50">Mark failed</button></>}
                       {payment.provider === "manual" && payment.status === "paid" && payment.payout_id && payment.payout_status === "pending" && <button type="button" disabled={busyFinance === `payouts-${payment.payout_id}`} onClick={() => updateFinance("payouts", payment.payout_id!, "paid")} className="rounded-xl bg-[#082f5b] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">Release Helper payout</button>}
                       {payment.payout_id && <span className="block scroll-mt-28" id={`payout-${payment.payout_id}`} />}
@@ -1367,8 +1393,8 @@ function MiniStat({
 
 function FinanceMini({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-28 rounded-2xl bg-[#f6f8fb] px-4 py-3">
-      <p className="text-lg font-bold text-[#082f5b]">{value}</p>
+    <div className="min-w-0 rounded-2xl bg-[#f6f8fb] px-3 py-3 sm:px-4">
+      <p className="text-base font-bold tabular-nums text-[#082f5b] sm:text-lg">{value}</p>
       <p className="mt-1 text-[11px] font-semibold text-slate-500">{label}</p>
     </div>
   );

@@ -56,6 +56,7 @@ export default function AdminActivity() {
   const [actor, setActor] = useState("");
   const [source, setSource] = useState("");
   const [query, setQuery] = useState({ actor: "", source: "", cursor: "", revision: 0 });
+  const activityColumns = "lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1.2fr)_minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,0.65fr)]";
   const [result, setResult] = useState<ActivityPage | null>(null);
   const [error, setError] = useState("");
 
@@ -119,21 +120,21 @@ export default function AdminActivity() {
       <div className="mx-auto max-w-6xl px-5 py-9">
         <h1 className="text-3xl font-bold">Administrator activity</h1>
         <form
-          className="my-6 flex flex-wrap items-end gap-4 rounded-2xl border border-slate-200 bg-white p-4"
+          className="my-6 grid items-end gap-4 rounded-2xl border border-slate-200 bg-white p-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,14rem)_minmax(0,14rem)_auto] lg:justify-start"
           onSubmit={(event) => { event.preventDefault(); load("", { actor: actor.trim(), source }); }}
         >
           <label className="grid gap-1 text-sm font-semibold">
             Administrator user ID
-            <input className="rounded-lg border border-slate-300 px-3 py-2 font-normal" value={actor} onChange={(event) => setActor(event.target.value)} inputMode="numeric" pattern="[1-9][0-9]*" placeholder="All administrators" />
+            <input className="min-h-11 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" value={actor} onChange={(event) => setActor(event.target.value)} inputMode="numeric" pattern="[1-9][0-9]*" placeholder="All administrators" />
           </label>
           <label className="grid gap-1 text-sm font-semibold">
             Activity type
-            <select className="rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal" value={source} onChange={(event) => setSource(event.target.value)}>
+            <select className="min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal" value={source} onChange={(event) => setSource(event.target.value)}>
               <option value="">All activity</option>
               {Object.entries(sourceLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
             </select>
           </label>
-          <button className="rounded-lg bg-[#082f5b] px-4 py-2 text-sm font-bold text-white" type="submit">Apply filters</button>
+          <button className="min-h-11 rounded-lg bg-[#082f5b] px-4 py-2 text-sm font-bold text-white sm:col-span-2 lg:col-span-1" type="submit">Apply filters</button>
         </form>
 
         {error ? (
@@ -142,41 +143,52 @@ export default function AdminActivity() {
             <button type="button" className="mt-2 font-semibold underline" onClick={() => load(query.cursor)}>Try again</button>
           </div>
         ) : !result ? <p role="status">Loading activity…</p> : (
-          <section className="overflow-x-auto rounded-2xl border border-slate-200 bg-white" aria-label="Activity results">
+          <section className="rounded-2xl border border-slate-200 bg-white" aria-label="Activity results">
             {result.data.length ? (
-              <table className="w-full border-collapse text-left text-sm">
-                <thead className="bg-slate-100">
-                  <tr>
-                    <th scope="col" className="p-4">Time</th>
-                    <th scope="col" className="p-4">Administrator</th>
-                    <th scope="col" className="p-4">Action</th>
-                    <th scope="col" className="p-4">Record</th>
-                    <th scope="col" className="p-4">Result</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <>
+                <div aria-hidden="true" className={`hidden gap-4 rounded-t-2xl bg-slate-100 px-4 py-3 text-sm font-bold lg:grid ${activityColumns}`}>
+                  <span>Time</span><span>Administrator</span><span>Action</span><span>Record</span><span>Result</span>
+                </div>
+                <ul role="list" className="divide-y divide-slate-200">
                   {result.data.map((event) => (
-                    <tr key={`${event.source}-${event.event_id}`} className="border-t border-slate-100 align-top">
-                      <td className="min-w-36 p-4"><time dateTime={event.created_at}>{new Date(event.created_at).toLocaleString()}</time></td>
-                      <td className="min-w-36 p-4">
-                        <p className="font-semibold">{event.actor_name ?? "Administrator"} (#{event.actor_user_id})</p>
-                        <p className="text-slate-600">{event.actor_role === "super_admin" ? "Super Admin" : "Admin"}</p>
-                      </td>
-                      <td className="p-4 break-words">{describeAction(event)}</td>
-                      <td className="p-4">
-                        {event.source !== "request" && <p>{event.resource}</p>}
-                        {event.target != null && (event.source === "request" ? event.target : `#${event.target}`)}
-                      </td>
-                      <td className="p-4">{event.response_status ? `HTTP ${event.response_status}` : "Recorded"}</td>
-                    </tr>
+                    <li key={`${event.source}-${event.event_id}`}>
+                      <dl className={`grid gap-x-4 gap-y-3 p-4 text-sm sm:grid-cols-2 ${activityColumns}`}>
+                        <div>
+                          <dt className="text-xs font-semibold text-slate-600 lg:sr-only">Time</dt>
+                          <dd><time dateTime={event.created_at}>{new Date(event.created_at).toLocaleString()}</time></dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs font-semibold text-slate-600 lg:sr-only">Administrator</dt>
+                          <dd>
+                            <p className="font-semibold">{event.actor_name ?? "Administrator"} (#{event.actor_user_id})</p>
+                            <p className="text-slate-600">{event.actor_role === "super_admin" ? "Super Admin" : "Admin"}</p>
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs font-semibold text-slate-600 lg:sr-only">Action</dt>
+                          <dd>{describeAction(event)}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs font-semibold text-slate-600 lg:sr-only">Record</dt>
+                          <dd>
+                            {event.source !== "request" && <p>{event.resource}</p>}
+                            {event.target != null ? (event.source === "request" ? event.target : `#${event.target}`) : event.source === "request" ? "—" : null}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs font-semibold text-slate-600 lg:sr-only">Result</dt>
+                          <dd>{event.response_status ? `HTTP ${event.response_status}` : "Recorded"}</dd>
+                        </div>
+                      </dl>
+                    </li>
                   ))}
-                </tbody>
-              </table>
+                </ul>
+              </>
             ) : <p className="p-5 text-slate-600">No activity matches these filters.</p>}
             {(result.previous_cursor || result.next_cursor) && (
-              <nav aria-label="Activity pages" className="flex justify-between border-t border-slate-200 p-4 text-sm font-semibold">
-                <button type="button" className="underline disabled:no-underline disabled:opacity-40" disabled={!result.previous_cursor} onClick={() => load(result.previous_cursor ?? "")}>Newer activity</button>
-                <button type="button" className="underline disabled:no-underline disabled:opacity-40" disabled={!result.next_cursor} onClick={() => load(result.next_cursor ?? "")}>Older activity</button>
+              <nav aria-label="Activity pages" className="flex flex-wrap justify-between gap-2 border-t border-slate-200 p-4 text-sm font-semibold">
+                <button type="button" className="min-h-11 px-2 underline disabled:no-underline disabled:opacity-40" disabled={!result.previous_cursor} onClick={() => load(result.previous_cursor ?? "")}>Newer activity</button>
+                <button type="button" className="min-h-11 px-2 underline disabled:no-underline disabled:opacity-40" disabled={!result.next_cursor} onClick={() => load(result.next_cursor ?? "")}>Older activity</button>
               </nav>
             )}
           </section>

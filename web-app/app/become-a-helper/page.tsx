@@ -819,16 +819,16 @@ export default function BecomeAHelperPage() {
       </section>
 
       <div className="border-b border-slate-200 bg-white">
-        <div className="mx-auto max-w-7xl overflow-x-auto px-5 sm:px-8">
-          <div className="flex min-w-[720px] items-center py-5">
-            {steps.map((item, index) => {
+        <div className="mx-auto max-w-7xl px-5 sm:px-8">
+          <div className="grid grid-cols-2 gap-x-3 gap-y-2 py-4 sm:grid-cols-3 lg:grid-cols-6">
+            {steps.map((item) => {
               const active = item.number === step;
               const complete = item.number < step;
 
               return (
                 <div
                   key={item.number}
-                  className="flex flex-1 items-center"
+                  className="min-w-0"
                 >
                   <button
                     type="button"
@@ -838,7 +838,8 @@ export default function BecomeAHelperPage() {
                         setStep(item.number);
                       }
                     }}
-                    className="flex items-center gap-2 text-left"
+                    aria-current={active ? "step" : undefined}
+                    className="flex min-h-11 items-center gap-2 text-left"
                   >
                     <span
                       className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${
@@ -865,15 +866,7 @@ export default function BecomeAHelperPage() {
                     </span>
                   </button>
 
-                  {index < steps.length - 1 && (
-                    <div
-                      className={`mx-4 h-px flex-1 ${
-                        complete
-                          ? "bg-[#2fad45]"
-                          : "bg-slate-200"
-                      }`}
-                    />
-                  )}
+
                 </div>
               );
             })}
@@ -881,7 +874,7 @@ export default function BecomeAHelperPage() {
         </div>
       </div>
 
-      <section className="mx-auto grid max-w-7xl gap-8 px-5 py-10 sm:px-8 lg:grid-cols-[1fr_310px] lg:py-14">
+      <section className="mx-auto grid max-w-7xl gap-8 px-5 py-10 sm:px-8 lg:grid-cols-[minmax(0,1fr)_310px] lg:py-14">
         <div>
           {error && (
             <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-medium text-red-700">
@@ -1248,7 +1241,7 @@ export default function BecomeAHelperPage() {
                     className="border-b border-slate-100 p-5 last:border-b-0 sm:p-6"
                   >
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-                      <label className="flex min-w-[160px] cursor-pointer items-center gap-3">
+                      <label className="flex cursor-pointer sm:min-w-[160px] items-center gap-3">
                         <input
                           type="checkbox"
                           checked={day.is_available}
@@ -1267,7 +1260,7 @@ export default function BecomeAHelperPage() {
                       </label>
 
                       {day.is_available ? (
-                        <div className="flex flex-1 items-center gap-3">
+                        <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
                           <input
                             type="time"
                             value={day.start_time}

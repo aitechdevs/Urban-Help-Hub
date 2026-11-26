@@ -118,12 +118,12 @@ export default function RegionSelector() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-12 z-[90] w-72 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+        <div className="absolute right-0 top-12 z-[90] w-[min(18rem,calc(100vw-2rem))] overflow-hidden max-sm:fixed max-sm:inset-x-4 max-sm:top-16 max-sm:w-auto rounded-2xl border border-slate-200 bg-white shadow-2xl">
           <div className="border-b border-slate-100 px-4 py-3">
             <p className="font-black text-[#082f5b]">{t("countryCurrency")}</p>
             <p className="mt-0.5 text-xs text-slate-500">{t("preferenceHelp")}</p>
           </div>
-          <div className="max-h-80 overflow-y-auto p-2">
+          <div className="max-h-[min(20rem,calc(100dvh-9rem))] overflow-y-auto overscroll-contain p-2">
             {REGIONS.map((item) => (
               <button
                 type="button"

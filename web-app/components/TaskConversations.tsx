@@ -133,13 +133,13 @@ export default function TaskConversations({ role }: { role: "customer" | "helper
   return (
     <main className="min-h-screen bg-[#f6f8fb] text-[#082f5b]">
       <header className="sticky top-0 z-20 border-b border-slate-200 bg-white px-5 py-4">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
           <SiteLogo href={dashboard} />
-          <a href={dashboard} className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold hover:bg-slate-50">← Back to {role === "customer" ? "Customer" : "Helper"} Dashboard</a>
+          <a href={dashboard} className="rounded-xl border border-slate-300 px-3 py-2 text-center text-sm font-bold hover:bg-slate-50">← Dashboard</a>
         </div>
       </header>
       <div className="mx-auto max-w-6xl px-4 py-8">
-        <div className="mb-6 flex items-center justify-between gap-4">
+        <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
           <div><p className="text-xs font-bold uppercase tracking-wider text-emerald-700">{role} workspace</p><h1 className="mt-1 text-3xl font-bold">Messages</h1><p className="mt-1 text-sm text-slate-500">Only participants in a confirmed task can access its conversation.</p></div>
           <button type="button" onClick={() => void refresh()} className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-bold hover:bg-slate-50">Refresh</button>
         </div>
@@ -147,7 +147,7 @@ export default function TaskConversations({ role }: { role: "customer" | "helper
         {loading ? <p className="rounded-xl bg-white p-6">Loading conversations…</p> : !threads.length ? (
           <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center"><h2 className="text-xl font-bold">No conversations yet</h2><p className="mt-2 text-sm text-slate-500">A conversation becomes available after a customer confirms a Helper for a task.</p></div>
         ) : (
-          <div className="grid min-h-[500px] overflow-hidden rounded-2xl border border-slate-200 bg-white md:grid-cols-[280px_1fr]">
+          <div className="grid min-h-[500px] overflow-hidden rounded-2xl border border-slate-200 bg-white md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)] lg:grid-cols-[17.5rem_minmax(0,1fr)]">
             <nav className="border-b border-slate-200 md:border-b-0 md:border-r" aria-label="Task conversations">
               {threads.map((item) => <button key={item.task_id} type="button" onClick={() => { setSelected(item.task_id); setDraft(""); }} className={`block w-full border-b border-slate-100 p-4 text-left hover:bg-slate-50 ${item.task_id === selected ? "bg-emerald-50" : ""}`} aria-current={item.task_id === selected ? "true" : undefined}>
                 <span className="block font-bold">{item.title || `Task #${item.task_id}`}</span>
@@ -160,7 +160,7 @@ export default function TaskConversations({ role }: { role: "customer" | "helper
               <div className="flex-1 space-y-3 overflow-y-auto bg-slate-50 p-4" aria-live="polite">
                 {thread?.messages.length ? thread.messages.map((message) => <div key={message.id} className={`max-w-[85%] rounded-xl p-3 text-sm shadow-sm ${message.sender_id === user?.id ? "ml-auto bg-emerald-100" : "bg-white"}`}><p className="mb-1 text-xs font-bold">{message.sender_name || (message.sender_id === user?.id ? "You" : "Participant")}</p><p className="whitespace-pre-wrap break-words">{message.message}</p><p className="mt-2 text-[11px] text-slate-500">{messageTime(message.created_at)}</p></div>) : <p className="text-sm text-slate-500">No messages yet for this task.</p>}
               </div>
-              {locked ? <p className="border-t border-slate-200 bg-slate-50 p-4 text-sm font-semibold text-slate-600">This conversation is locked. You can read the history but cannot send new messages.</p> : <form onSubmit={send} className="flex items-end gap-3 border-t border-slate-200 p-4"><label className="flex-1 text-sm font-bold">Message<textarea required maxLength={2000} value={draft} onChange={(e) => setDraft(e.target.value)} rows={2} className="mt-1 w-full resize-y rounded-xl border border-slate-300 px-3 py-2 font-normal" placeholder="Write a message to the confirmed participant…" /></label><button type="submit" disabled={busy || !draft.trim()} className="rounded-xl bg-[#082f5b] px-5 py-3 font-bold text-white disabled:opacity-50">{busy ? "Sending…" : "Send"}</button></form>}
+              {locked ? <p className="border-t border-slate-200 bg-slate-50 p-4 text-sm font-semibold text-slate-600">This conversation is locked. You can read the history but cannot send new messages.</p> : <form onSubmit={send} className="flex flex-col gap-3 border-t border-slate-200 p-4 sm:flex-row sm:items-end"><label className="min-w-0 flex-1 text-sm font-bold">Message<textarea required maxLength={2000} value={draft} onChange={(e) => setDraft(e.target.value)} rows={2} className="mt-1 w-full resize-y rounded-xl border border-slate-300 px-3 py-2 font-normal" placeholder="Write a message to the confirmed participant…" /></label><button type="submit" disabled={busy || !draft.trim()} className="min-h-11 rounded-xl bg-[#082f5b] px-5 py-3 font-bold text-white disabled:opacity-50">{busy ? "Sending…" : "Send"}</button></form>}
             </section>
           </div>
         )}
