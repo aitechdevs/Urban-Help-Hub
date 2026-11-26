@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\NotificationDestination;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -23,7 +24,7 @@ class FinalApprovalEmail
         $body .= $user->status === 'active' && $services
             ? "You can now receive matching job opportunities for the active approved services above, subject to your location and availability.\n"
             : "Verification is complete, but receiving job opportunities still requires an active account and at least one active approved service.\n";
-        $body .= "\nOpen your dashboard: https://urbanhelphub.com/helper/dashboard/\n\nUrbanHelpHub\n";
+        $body .= "\nOpen your dashboard: ".NotificationDestination::emailLink("/helper/dashboard/#helper-verification")."\n\nUrbanHelpHub\n";
         self::store('helper_verified:'.$userId.':'.Str::uuid(), $userId, 'helper_verified', $user->email,
             'UrbanHelpHub: Your Helper verification is complete', $body);
     }
@@ -47,7 +48,7 @@ class FinalApprovalEmail
         }
         if ($change->review_note) $body .= "\nAdmin note: {$change->review_note}\n";
         $body .= "\nExisting task and payment details have not been changed.\n";
-        $body .= "View your profile: https://urbanhelphub.com/customer/profile/\n\nUrbanHelpHub\n";
+        $body .= "View your profile: ".NotificationDestination::emailLink("/customer/profile/#request-{$changeId}")."\n\nUrbanHelpHub\n";
         self::store('customer_profile_approved:'.$changeId, (int) $user->id, 'customer_profile_approved', $user->email,
             'UrbanHelpHub: Your profile changes have been approved', $body);
     }

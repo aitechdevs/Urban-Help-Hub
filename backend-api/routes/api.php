@@ -222,3 +222,5 @@ require __DIR__.'/final-approval-email.php';
 require __DIR__.'/administrator-management.php';
 
 require __DIR__.'/administrator-activity.php';
+
+require __DIR__.'/administrator-notifications.php';

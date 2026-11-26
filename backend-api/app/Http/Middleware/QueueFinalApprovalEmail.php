@@ -13,7 +13,7 @@ class QueueFinalApprovalEmail
     public function handle(Request $request, Closure $next): Response
     {
         // This middleware is added after the existing authentication and Admin guards.
-        if (!$request->user() || $request->user()->role !== 'admin' || $request->user()->status !== 'active') return $next($request);
+        if (!$request->user() || !in_array($request->user()->role, ['admin', 'super_admin'], true) || $request->user()->status !== 'active') return $next($request);
         $action = $request->route()->getActionName();
         $isHelper = str_ends_with($action, 'AdminController@updateVerification');
         $changeId = (int) $request->route('changeId');

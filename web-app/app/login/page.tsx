@@ -55,6 +55,19 @@ function routeForRole(role: UserRole) {
   return "/dashboard";
 }
 
+function notificationReturn(role: UserRole) {
+  const next = new URLSearchParams(window.location.search).get("next");
+  if (!next || !next.startsWith("/") || next.startsWith("//")) return null;
+
+  const destination = new URL(next, window.location.origin);
+  if (destination.origin !== window.location.origin) return null;
+  const customerPages = ["/dashboard/", "/customer/profile/", "/messages/"];
+  const helperPages = ["/helper/dashboard/", "/helper/messages/"];
+  const allowed = role === "customer" ? customerPages : role === "helper" ? helperPages : ["/admin/"];
+
+  return allowed.includes(destination.pathname) ? destination.pathname + destination.search + destination.hash : null;
+}
+
 function EyeIcon({ open }: { open: boolean }) {
   if (open) {
     return (
@@ -344,9 +357,12 @@ export default function LoginPage() {
        * Replace rather than push so the browser Back button
        * does not immediately return to the login screen.
        */
-      router.replace(
-        routeForRole(verifiedUser.role)
-      );
+      const next = notificationReturn(verifiedUser.role);
+      if (next) {
+        window.location.replace(next);
+      } else {
+        router.replace(routeForRole(verifiedUser.role));
+      }
     } catch (err) {
       /*
        * Never leave partially written authentication state

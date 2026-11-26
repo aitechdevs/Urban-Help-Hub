@@ -204,7 +204,13 @@ class AdminController extends Controller
             ->orderByDesc('tasks.created_at');
 
         if ($status !== 'all') {
-            $query->where('tasks.status', $status);
+            $taskId = $request->integer('task_id');
+            $query->where(function ($filter) use ($status, $taskId) {
+                $filter->where('tasks.status', $status);
+                if ($taskId > 0) {
+                    $filter->orWhere('tasks.id', $taskId);
+                }
+            });
         }
 
         return response()->json(['success' => true, 'data' => $query->get()]);
@@ -240,13 +246,14 @@ class AdminController extends Controller
                     'Task requires changes',
                     '“'.$task->title.'” was not approved: '.$validated['reason'],
                     '/dashboard',
-                    ['task_id' => $taskId]
+                    ['task_id' => $taskId],
+                    email: true
                 );
                 return ['matched_helpers' => 0, 'message' => 'Task rejected. The Customer can see the review reason.'];
             }
 
             DB::table('tasks')->where('id', $taskId)->update(['status' => 'open', 'published_at' => $now, 'updated_at' => $now]);
-            $matchedHelpers = TaskMatching::offer($task, reoffer: true);
+            $matchedHelpers = TaskMatching::offer($task, reoffer: true, email: true);
             $this->recordTaskStatus($taskId, $request->user()->id, 'pending_approval', 'open', 'Admin approved and published the task.');
             InAppNotification::send(
                 (int) $task->customer_id,
@@ -254,7 +261,8 @@ class AdminController extends Controller
                 'Your task is now live',
                 '“'.$task->title.'” was approved and published to eligible Helpers.',
                 '/dashboard',
-                ['task_id' => $taskId, 'matched_helpers' => $matchedHelpers]
+                ['task_id' => $taskId, 'matched_helpers' => $matchedHelpers],
+                email: true
             );
             return [
                 'matched_helpers' => $matchedHelpers,
@@ -285,39 +293,42 @@ class AdminController extends Controller
             'status' => ['required', Rule::in(['pending', 'paid', 'failed', 'refunded'])],
         ]);
 
-        $payment = DB::table('payments')->where('id', $paymentId)->first();
-        if (!$payment) {
-            return response()->json(['success' => false, 'message' => 'Payment not found.'], 404);
-        }
+        return DB::transaction(function () use ($paymentId, $validated) {
+            $payment = DB::table('payments')->where('id', $paymentId)->lockForUpdate()->first();
+            if (!$payment) {
+                return response()->json(['success' => false, 'message' => 'Payment not found.'], 404);
+            }
 
-        if ($payment->provider !== 'manual') {
-            return response()->json([
-                'success' => false,
-                'message' => 'Payment status is verified by the provider.',
-            ], 409);
-        }
+            if ($payment->provider !== 'manual') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Payment status is verified by the provider.',
+                ], 409);
+            }
 
-        $status = $validated['status'];
-        DB::table('payments')->where('id', $paymentId)->update([
-            'status' => $status,
-            'paid_at' => $status === 'paid' ? now() : $payment->paid_at,
-            'failed_at' => $status === 'failed' ? now() : null,
-            'refunded_at' => $status === 'refunded' ? now() : null,
-            'updated_at' => now(),
-        ]);
+            $status = $validated['status'];
+            DB::table('payments')->where('id', $paymentId)->update([
+                'status' => $status,
+                'paid_at' => $status === 'paid' ? now() : $payment->paid_at,
+                'failed_at' => $status === 'failed' ? now() : null,
+                'refunded_at' => $status === 'refunded' ? now() : null,
+                'updated_at' => now(),
+            ]);
 
-        if ($status === 'paid') {
-            InAppNotification::send(
-                (int) $payment->customer_id,
-                'payment_paid',
-                'Payment received',
-                'Your task payment has been recorded successfully.',
-                '/dashboard',
-                ['payment_id' => $paymentId, 'task_id' => $payment->task_id]
-            );
-        }
+            if ($status !== $payment->status) {
+                InAppNotification::send(
+                    (int) $payment->customer_id,
+                    'payment_'.$status,
+                    $status === 'paid' ? 'Payment received' : 'Payment status updated',
+                    'Your task payment status is now '.$status.'.',
+                    '/dashboard',
+                    ['payment_id' => $paymentId, 'task_id' => $payment->task_id],
+                    email: true
+                );
+            }
 
-        return response()->json(['success' => true, 'message' => 'Payment status updated.']);
+            return response()->json(['success' => true, 'message' => 'Payment status updated.']);
+        }, 3);
     }
 
     public function updatePayoutStatus(Request $request, int $payoutId): JsonResponse
@@ -326,52 +337,55 @@ class AdminController extends Controller
             'status' => ['required', Rule::in(['pending', 'paid', 'failed'])],
         ]);
 
-        $payout = DB::table('payouts')->where('id', $payoutId)->first();
-        if (!$payout) {
-            return response()->json(['success' => false, 'message' => 'Payout not found.'], 404);
-        }
+        return DB::transaction(function () use ($payoutId, $validated) {
+            $payout = DB::table('payouts')->where('id', $payoutId)->lockForUpdate()->first();
+            if (!$payout) {
+                return response()->json(['success' => false, 'message' => 'Payout not found.'], 404);
+            }
 
-        if ($payout->provider !== 'manual' || $payout->paypal_sender_batch_id
-            || DB::table('payments')->where('id', $payout->payment_id)->where('provider', '!=', 'manual')->exists()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Provider payouts require verified provider status.',
-            ], 409);
-        }
-
-        if ($validated['status'] === 'paid') {
-            $paymentPaid = $payout->payment_id && DB::table('payments')
-                ->where('id', $payout->payment_id)
-                ->where('status', 'paid')
-                ->exists();
-            if (!$paymentPaid) {
+            if ($payout->provider !== 'manual' || $payout->paypal_sender_batch_id
+                || DB::table('payments')->where('id', $payout->payment_id)->where('provider', '!=', 'manual')->exists()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'The Customer payment must be marked paid before releasing the Helper payout.',
+                    'message' => 'Provider payouts require verified provider status.',
                 ], 409);
             }
-        }
 
-        DB::table('payouts')->where('id', $payoutId)->update([
-            'status' => $validated['status'],
-            'processed_at' => in_array($validated['status'], ['paid', 'failed'], true) ? now() : null,
-            'paid_at' => $validated['status'] === 'paid' ? now() : null,
-            'failed_at' => $validated['status'] === 'failed' ? now() : null,
-            'updated_at' => now(),
-        ]);
+            if ($validated['status'] === 'paid') {
+                $paymentPaid = $payout->payment_id && DB::table('payments')
+                    ->where('id', $payout->payment_id)
+                    ->where('status', 'paid')
+                    ->exists();
+                if (!$paymentPaid) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'The Customer payment must be marked paid before releasing the Helper payout.',
+                    ], 409);
+                }
+            }
 
-        if ($validated['status'] === 'paid') {
-            InAppNotification::send(
-                (int) $payout->helper_id,
-                'payout_paid',
-                'Payout released',
-                'Your '.number_format((float) $payout->net_amount, 2).' '.$payout->currency.' payout has been released.',
-                '/helper/dashboard',
-                ['payout_id' => $payoutId, 'task_id' => $payout->task_id]
-            );
-        }
+            DB::table('payouts')->where('id', $payoutId)->update([
+                'status' => $validated['status'],
+                'processed_at' => in_array($validated['status'], ['paid', 'failed'], true) ? now() : null,
+                'paid_at' => $validated['status'] === 'paid' ? now() : null,
+                'failed_at' => $validated['status'] === 'failed' ? now() : null,
+                'updated_at' => now(),
+            ]);
 
-        return response()->json(['success' => true, 'message' => 'Payout status updated.']);
+            if ($validated['status'] !== $payout->status) {
+                InAppNotification::send(
+                    (int) $payout->helper_id,
+                    'payout_'.$validated['status'],
+                    $validated['status'] === 'paid' ? 'Payout released' : 'Payout status updated',
+                    'Your payout status is now '.$validated['status'].'.',
+                    '/helper/dashboard',
+                    ['payout_id' => $payoutId, 'task_id' => $payout->task_id],
+                    email: true
+                );
+            }
+
+            return response()->json(['success' => true, 'message' => 'Payout status updated.']);
+        }, 3);
     }
 
     /**

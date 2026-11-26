@@ -39,7 +39,9 @@ class ApprovalConsistencyTest extends TestCase
         $this->putJson("/api/admin/helpers/{$helper->id}/verification", ['verification_status' => 'verified'])->assertOk();
         $this->putJson($url, ['approval_status' => 'approved'])->assertOk();
         $this->assertDatabaseHas('helper_services', ['id' => $service, 'approval_status' => 'approved', 'is_active' => true]);
-        $this->assertDatabaseCount('approval_email_outbox', 1);
+        $this->assertDatabaseCount('approval_email_outbox', 2);
+        $this->assertDatabaseHas('approval_email_outbox', ['event_type' => 'helper_verified', 'user_id' => $helper->id]);
+        $this->assertDatabaseHas('approval_email_outbox', ['event_type' => 'helper_service_reviewed', 'user_id' => $helper->id]);
     }
 
     public function test_suspension_blocks_verification_and_service_approval_without_reactivation(): void

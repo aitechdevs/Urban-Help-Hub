@@ -118,6 +118,9 @@ class PayPalPayoutService
                 'paypal_mode' => $this->paypal->mode(), 'paypal_sender_batch_id' => (string) Str::uuid(),
                 'paypal_recipient' => $account->recipient, 'failure_reason' => null, 'updated_at' => now(),
             ]);
+            InAppNotification::send((int) $payout->helper_id, 'payout_authorized', 'Your payout was authorized',
+                'An administrator authorized your payout for PayPal processing.',
+                data: ['payout_id' => $payout->id, 'task_id' => $payout->task_id], email: true);
         });
 
         // Approval and sender ID survive an ambiguous network response.
@@ -227,7 +230,7 @@ class PayPalPayoutService
         }
         DB::table('payouts')->where('id', $payout->id)->update($update);
         if ($payout->status !== $status && $status === 'paid' && ! $payout->paid_at) {
-            InAppNotification::send((int) $payout->helper_id, 'payout_paid', 'Helper payout completed', 'PayPal confirmed your '.number_format((float) $payout->net_amount, 2).' '.$payout->currency.' payout.', '/helper/earnings/', ['payout_id' => $payout->id, 'task_id' => $payout->task_id]);
+            InAppNotification::send((int) $payout->helper_id, 'payout_paid', 'Helper payout completed', 'PayPal confirmed your '.number_format((float) $payout->net_amount, 2).' '.$payout->currency.' payout.', '/helper/earnings/', ['payout_id' => $payout->id, 'task_id' => $payout->task_id], email: true);
             InAppNotification::sendToAdmins('payout_paid', 'Helper payout completed', 'PayPal confirmed payout #'.$payout->id.'.', '/admin#payments', ['payout_id' => $payout->id]);
         } elseif ($payout->status !== $status && in_array($status, ['failed', 'unclaimed', 'returned', 'refunded'], true)) {
             InAppNotification::sendToAdmins('payout_attention', 'Helper payout needs attention', 'Payout #'.$payout->id.' is '.$status.'. Reconcile the existing transfer before any replacement.', '/admin#payments', ['payout_id' => $payout->id]);

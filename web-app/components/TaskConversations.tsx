@@ -78,7 +78,12 @@ export default function TaskConversations({ role }: { role: "customer" | "helper
       if (!Array.isArray(raw)) throw new Error("Unexpected conversations response from the API.");
       const normalized: Thread[] = raw.filter((t: Thread) => Number.isFinite(Number(t.task_id))).map((t: Thread) => ({ ...t, task_id: Number(t.task_id), messages: Array.isArray(t.messages) ? t.messages : [] }));
       setThreads(normalized);
-      setSelected((prior) => normalized.some((t) => t.task_id === prior) ? prior : normalized[0]?.task_id ?? null);
+      const requestedTask = Number(new URLSearchParams(window.location.search).get("task"));
+      setSelected((prior) => {
+        if (normalized.some((thread) => thread.task_id === prior)) return prior;
+        if (normalized.some((thread) => thread.task_id === requestedTask)) return requestedTask;
+        return normalized[0]?.task_id ?? null;
+      });
       // Independently check task state so a completed conversation remains read-only
       // even if the messages API has not yet added a `chat_locked_at` field.
       try {

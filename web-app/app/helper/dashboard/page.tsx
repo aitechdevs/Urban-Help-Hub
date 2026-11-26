@@ -650,48 +650,50 @@ export default function HelperDashboardPage() {
             </nav>
           </div>
 
-          <div className="hidden items-center gap-4 sm:flex">
-            <RegionSelector />
-            <NotificationBell />
-            <button
-              type="button"
-              onClick={() => router.push("/become-a-helper")}
-              className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-bold text-[#082f5b] transition hover:bg-slate-50"
-            >
-              {t("editProfile")}
-            </button>
+          <div className="flex items-center gap-2 sm:gap-4">
+            <NotificationBell dashboard="/helper/dashboard/" />
+            <div className="hidden items-center gap-4 sm:flex">
+              <RegionSelector />
+              <button
+                type="button"
+                onClick={() => router.push("/become-a-helper")}
+                className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-bold text-[#082f5b] transition hover:bg-slate-50"
+              >
+                {t("editProfile")}
+              </button>
 
-            <div className="text-right">
-              <p className="text-sm font-bold text-[#082f5b]">
-                {data.user.name}
-              </p>
-              <p className="text-xs text-slate-500">
-                Helper
-              </p>
+              <div className="text-right">
+                <p className="text-sm font-bold text-[#082f5b]">
+                  {data.user.name}
+                </p>
+                <p className="text-xs text-slate-500">
+                  Helper
+                </p>
+              </div>
+
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-50 font-bold text-[#238f39]">
+                {data.user.name.charAt(0).toUpperCase()}
+              </div>
+
+              <button
+                type="button"
+                onClick={logout}
+                disabled={loggingOut}
+                className="text-sm font-bold text-slate-500 hover:text-red-600 disabled:opacity-50"
+              >
+                {loggingOut ? "Signing out..." : t("logout")}
+              </button>
             </div>
 
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-50 font-bold text-[#238f39]">
-              {data.user.name.charAt(0).toUpperCase()}
-            </div>
-
             <button
               type="button"
-              onClick={logout}
-              disabled={loggingOut}
-              className="text-sm font-bold text-slate-500 hover:text-red-600 disabled:opacity-50"
+              onClick={() => setMobileMenuOpen((current) => !current)}
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-xl text-[#082f5b] sm:hidden"
+              aria-label="Open menu"
             >
-              {loggingOut ? "Signing out..." : t("logout")}
+              ☰
             </button>
           </div>
-
-          <button
-            type="button"
-            onClick={() => setMobileMenuOpen((current) => !current)}
-            className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-xl text-[#082f5b] sm:hidden"
-            aria-label="Open menu"
-          >
-            ☰
-          </button>
         </div>
 
         {mobileMenuOpen && (
@@ -888,7 +890,8 @@ export default function HelperDashboardPage() {
                     return (
                       <div
                         key={service.id}
-                        className="p-6 sm:p-7"
+                        id={`helper-service-${service.id}`}
+                        className="scroll-mt-28 p-6 sm:p-7"
                       >
                         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                           <div className="flex items-start gap-4">
@@ -1002,7 +1005,7 @@ export default function HelperDashboardPage() {
               ) : (
                 <div className="divide-y divide-slate-100">
                   {opportunities.map((task) => (
-                    <div key={task.assignment_id} className="p-6 sm:p-7">
+                    <div key={task.assignment_id} id={`helper-opportunity-${task.task_id}`} className="scroll-mt-28 p-6 sm:p-7">
                       <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                         <div className="min-w-0">
                           <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">{task.service_name}</span>
@@ -1046,7 +1049,7 @@ export default function HelperDashboardPage() {
               /> : (
                 <div className="divide-y divide-slate-100">
                   {activeJobs.map((task) => (
-                    <div key={task.assignment_id} className="p-6 sm:p-7">
+                    <div key={task.assignment_id} id={`helper-job-${task.task_id}`} className="scroll-mt-28 p-6 sm:p-7">
                       <div className="flex flex-wrap items-start justify-between gap-4">
                         <div>
                           <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">{task.service_name}</span>
@@ -1079,7 +1082,7 @@ export default function HelperDashboardPage() {
                 <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">{completedJobs.length} completed</span>
               </div>
               {completedJobs.length === 0 ? <EmptyState icon="✓" title="No completed jobs yet" description="Finished jobs and payout details will appear here." /> : <div className="divide-y divide-slate-100">
-                {completedJobs.map((task) => <article key={task.assignment_id} className="p-6 sm:p-7">
+                {completedJobs.map((task) => <article key={task.assignment_id} id={`helper-job-${task.task_id}`} className="scroll-mt-28 p-6 sm:p-7">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div><span className="rounded-full bg-green-50 px-3 py-1 text-xs font-bold text-green-700">Completed</span><h3 className="mt-3 font-bold text-[#082f5b]">{task.title}</h3><p className="mt-1 text-sm text-slate-500">{task.customer_name} · {task.scheduled_date}</p>{task.payment && <p className="mt-3 text-sm font-bold text-emerald-700">Net earnings: {formatMoney(task.payment.net_amount, task.payment.currency)} · {statusLabel(task.payment.status)}</p>}</div>
                     <div>{!task.my_review ? <button type="button" disabled={busyJob === task.task_id} onClick={() => reviewCustomer(task.task_id)} className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-[#082f5b] disabled:opacity-50">Review Customer</button> : <span className="text-sm font-bold text-amber-600">{"★".repeat(task.my_review.rating)}</span>}</div>
@@ -1090,7 +1093,7 @@ export default function HelperDashboardPage() {
           </div>
 
           <aside className="space-y-6">
-            <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <section id="helper-verification" className="scroll-mt-28 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-bold text-[#082f5b]">
                   {t("verification")}
@@ -1145,7 +1148,7 @@ export default function HelperDashboardPage() {
                 />
               </div>
 
-              <div className="mt-6 border-t border-slate-100 pt-6">
+              <div id="helper-documents" className="mt-6 scroll-mt-28 border-t border-slate-100 pt-6">
                 <h3 className="font-bold text-[#082f5b]">Verification documents</h3>
                 <p className="mt-1 text-xs leading-5 text-slate-500">
                   PDF, JPG or PNG. Maximum file size 5 MB. Files are stored privately.
@@ -1175,7 +1178,7 @@ export default function HelperDashboardPage() {
 
                 <div className="mt-5 space-y-3">
                   {data.documents.length > 0 ? data.documents.map((document) => (
-                    <div key={document.id} className="rounded-xl border border-slate-200 p-3">
+                    <div key={document.id} id={`helper-document-${document.id}`} className="scroll-mt-28 rounded-xl border border-slate-200 p-3">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <p className="truncate text-sm font-bold text-[#082f5b]">{document.document_name || statusLabel(document.document_type)}</p>

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 
 import { API_URL } from "@/lib/api";
 
@@ -31,8 +30,12 @@ function timeAgo(value: string) {
   return `${days}d ago`;
 }
 
-export default function NotificationBell() {
-  const router = useRouter();
+function destination(value: string | null | undefined, fallback: string) {
+  if (!value || !value.startsWith("/") || value.startsWith("//") || new URL(value, "https://urbanhelphub.com").origin !== "https://urbanhelphub.com") return fallback;
+  return value;
+}
+
+export default function NotificationBell({ dashboard }: { dashboard: string }) {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [unread, setUnread] = useState(0);
@@ -51,15 +54,20 @@ export default function NotificationBell() {
         setItems(payload.data.notifications || []);
         setUnread(Number(payload.data.unread_count || 0));
       }
+    } catch {
+      // Keep the last successful list if the network is unavailable.
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
-    load();
-    const timer = window.setInterval(load, 30000);
-    return () => window.clearInterval(timer);
+    const firstLoad = window.setTimeout(load, 0);
+    const poll = window.setInterval(load, 30000);
+    return () => {
+      window.clearTimeout(firstLoad);
+      window.clearInterval(poll);
+    };
   }, []);
 
   useEffect(() => {
@@ -70,27 +78,79 @@ export default function NotificationBell() {
     return () => document.removeEventListener("mousedown", close);
   }, []);
 
-  async function markRead(item: NotificationItem) {
-    if (!item.read_at) {
-      const authToken = token();
-      await fetch(`${API_URL}/notifications/${item.id}/read`, {
-        method: "PUT",
-        headers: { Accept: "application/json", Authorization: `Bearer ${authToken}` },
+  useEffect(() => {
+    let observer: MutationObserver | undefined;
+    let timer: number | undefined;
+    function focusTarget() {
+      observer?.disconnect();
+      window.clearTimeout(timer);
+      const id = window.location.hash.slice(1);
+      if (!/^[a-z][a-z0-9-]*$/.test(id)) return;
+
+      function reveal(target: HTMLElement) {
+        if (target instanceof HTMLDetailsElement) target.open = true;
+        target.scrollIntoView({ block: "start" });
+      }
+
+      const existing = document.getElementById(id);
+      if (existing) {
+        reveal(existing);
+        return;
+      }
+      observer = new MutationObserver(() => {
+        const target = document.getElementById(id);
+        if (target) {
+          observer?.disconnect();
+          window.clearTimeout(timer);
+          reveal(target);
+        }
       });
+      observer.observe(document.body, { childList: true, subtree: true });
+      timer = window.setTimeout(() => {
+        observer?.disconnect();
+        const section = new URLSearchParams(window.location.search).get("section");
+        const fallback = section && document.getElementById(section);
+        if (fallback) reveal(fallback);
+      }, 1500);
+    }
+    focusTarget();
+    window.addEventListener("hashchange", focusTarget);
+    return () => {
+      observer?.disconnect();
+      window.clearTimeout(timer);
+      window.removeEventListener("hashchange", focusTarget);
+    };
+  }, []);
+
+  function markRead(item: NotificationItem) {
+    setOpen(false);
+    const authToken = token();
+    if (!authToken || item.read_at) return;
+    void fetch(`${API_URL}/notifications/${item.id}/read`, {
+      method: "PUT",
+      keepalive: true,
+      headers: { Accept: "application/json", Authorization: `Bearer ${authToken}` },
+    }).then((response) => {
+      if (!response.ok) return;
       setItems((current) => current.map((entry) => entry.id === item.id ? { ...entry, read_at: new Date().toISOString() } : entry));
       setUnread((current) => Math.max(0, current - 1));
-    }
-    if (item.action_url) router.push(item.action_url);
+    }).catch(() => {});
   }
 
   async function markAllRead() {
     const authToken = token();
-    await fetch(`${API_URL}/notifications/read-all`, {
-      method: "PUT",
-      headers: { Accept: "application/json", Authorization: `Bearer ${authToken}` },
-    });
-    setItems((current) => current.map((item) => ({ ...item, read_at: item.read_at || new Date().toISOString() })));
-    setUnread(0);
+    if (!authToken) return;
+    try {
+      const response = await fetch(`${API_URL}/notifications/read-all`, {
+        method: "PUT",
+        headers: { Accept: "application/json", Authorization: `Bearer ${authToken}` },
+      });
+      if (!response.ok) return;
+      setItems((current) => current.map((item) => ({ ...item, read_at: item.read_at || new Date().toISOString() })));
+      setUnread(0);
+    } catch {
+      // Leave the list unread so the user can retry.
+    }
   }
 
   return (
@@ -99,6 +159,7 @@ export default function NotificationBell() {
         type="button"
         onClick={() => setOpen((value) => !value)}
         className="relative grid h-10 w-10 place-items-center rounded-full border border-slate-200 bg-white text-xl text-[#082f5b] transition hover:bg-slate-50"
+        aria-expanded={open}
         aria-label={`Notifications${unread ? `, ${unread} unread` : ""}`}
       >
         <span aria-hidden="true" className="text-base">🔔</span>
@@ -110,7 +171,7 @@ export default function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-12 z-[80] w-[min(92vw,380px)] overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-2xl">
+        <div className="absolute right-0 top-12 z-[80] w-[min(92vw,380px)] overflow-hidden max-sm:fixed max-sm:right-4 max-sm:top-16 max-sm:w-[calc(100vw-2rem)] rounded-2xl border border-slate-200 bg-white text-left shadow-2xl">
           <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
             <div>
               <p className="font-black text-[#082f5b]">Notifications</p>
@@ -124,9 +185,9 @@ export default function NotificationBell() {
             ) : items.length === 0 ? (
               <div className="p-8 text-center"><p className="text-2xl">🔔</p><p className="mt-2 font-bold text-[#082f5b]">No notifications yet</p></div>
             ) : items.map((item) => (
-              <button
+              <a
                 key={item.id}
-                type="button"
+                href={destination(item.action_url, dashboard)}
                 onClick={() => markRead(item)}
                 className={`block w-full border-b border-slate-100 px-4 py-4 text-left transition hover:bg-slate-50 ${item.read_at ? "bg-white" : "bg-green-50/60"}`}
               >
@@ -138,7 +199,7 @@ export default function NotificationBell() {
                     <span className="mt-2 block text-xs font-semibold text-slate-400">{timeAgo(item.created_at)}</span>
                   </span>
                 </div>
-              </button>
+              </a>
             ))}
           </div>
         </div>

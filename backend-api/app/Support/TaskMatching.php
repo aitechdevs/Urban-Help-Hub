@@ -30,7 +30,7 @@ class TaskMatching
     }
 
     // Callers hold the task row lock while creating offers and notifications.
-    public static function offer(stdClass $task, ?int $helperId = null, bool $reoffer = false): int
+    public static function offer(stdClass $task, ?int $helperId = null, bool $reoffer = false, bool $email = false): int
     {
         $helpers = self::eligibleHelpers($task, $helperId)->get(['users.id', 'helper_services.hourly_rate']);
 
@@ -67,7 +67,8 @@ class TaskMatching
                 'New job opportunity',
                 'A new “'.$task->title.'” task matches your services and location.',
                 '/helper/dashboard',
-                ['task_id' => $task->id]
+                ['task_id' => $task->id],
+                email: $email
             );
             $matched++;
         }

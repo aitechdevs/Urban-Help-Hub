@@ -407,11 +407,13 @@ export default function AdminDashboardPage() {
         }
 
         const signal = AbortSignal.timeout(15000);
+        const taskId = /^#approval-task-([1-9]\d*)$/.exec(window.location.hash)?.[1];
+        const taskQuery = taskId ? `&task_id=${taskId}` : "";
         const [dashboardData, helpersData, paymentsData, tasksData] = await Promise.all([
           loadAdminResource<DashboardData>("dashboard", "dashboard summary", token, signal),
           loadAdminResource<Helper[]>(`helpers?status=${filter}`, "helper applications", token, signal),
           loadAdminResource<PaymentRecord[]>("payments", "payment activity", token, signal),
-          loadAdminResource<AdminTask[]>("tasks?status=pending_approval", "task approvals", token, signal),
+          loadAdminResource<AdminTask[]>(`tasks?status=pending_approval${taskQuery}`, "task approvals", token, signal),
         ]);
 
         setDashboard(dashboardData);
@@ -667,42 +669,44 @@ export default function AdminDashboardPage() {
             </span>
           </div>
 
-          <div className="hidden items-center gap-4 sm:flex">
-            <RegionSelector />
-            <NotificationBell />
-            <div className="text-right">
-              <p className="text-sm font-bold text-[#082f5b]">
-                {dashboard.admin.name}
-              </p>
-              <p className="text-xs text-slate-500">
-                {t("administrator")}
-              </p>
-            </div>
+          <div className="flex items-center gap-2 sm:gap-4">
+            <NotificationBell dashboard="/admin/" />
+            <div className="hidden items-center gap-4 sm:flex">
+              <RegionSelector />
+              <div className="text-right">
+                <p className="text-sm font-bold text-[#082f5b]">
+                  {dashboard.admin.name}
+                </p>
+                <p className="text-xs text-slate-500">
+                  {t("administrator")}
+                </p>
+              </div>
 
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-50 text-sm font-bold text-[#238f39]">
-              {initials(dashboard.admin.name)}
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-50 text-sm font-bold text-[#238f39]">
+                {initials(dashboard.admin.name)}
+              </div>
+
+              <button
+                type="button"
+                onClick={logout}
+                disabled={loggingOut}
+                title="Sign out of Admin"
+                className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-4 focus:ring-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Icon name="logout" className="h-4 w-4" />
+                {loggingOut ? "Signing out..." : "Logout"}
+              </button>
             </div>
 
             <button
               type="button"
-              onClick={logout}
-              disabled={loggingOut}
-              title="Sign out of Admin"
-              className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-4 focus:ring-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={() => setMobileMenu((value) => !value)}
+              className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-slate-200 text-[#082f5b] transition hover:bg-slate-50 sm:hidden"
+              aria-label="Open Admin menu"
             >
-              <Icon name="logout" className="h-4 w-4" />
-              {loggingOut ? "Signing out..." : "Logout"}
+              <Icon name="menu" />
             </button>
           </div>
-
-          <button
-            type="button"
-            onClick={() => setMobileMenu((value) => !value)}
-            className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-slate-200 text-[#082f5b] transition hover:bg-slate-50 sm:hidden"
-            aria-label="Open Admin menu"
-          >
-            <Icon name="menu" />
-          </button>
         </div>
 
         {mobileMenu && (
@@ -1138,10 +1142,10 @@ export default function AdminDashboardPage() {
                 <Icon name="tasks" className="h-7 w-7 text-[#082f5b]" />
               </div>
               {tasks.length === 0 ? <div className="px-6 py-14 text-center"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-green-50 text-green-700"><Icon name="check" /></div><p className="mt-4 font-bold text-[#082f5b]">No tasks awaiting approval</p></div> : <div className="divide-y divide-slate-100">
-                {tasks.map((task) => <article key={task.id} className="p-5 sm:p-7">
+                {tasks.map((task) => <article key={task.id} id={`approval-task-${task.id}`} className="scroll-mt-28 p-5 sm:p-7">
                   <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-                    <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">{task.service_name}</span><span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">Pending approval</span></div><h3 className="mt-3 text-lg font-bold text-[#082f5b]">#{task.id} · {task.title}</h3><p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">{task.description}</p><div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs font-semibold text-slate-500"><span>Customer: {task.customer_name} ({task.customer_email})</span><span>📍 {[task.address_line_1, task.city, task.province, task.postal_code].filter(Boolean).join(", ")}</span><span>📅 {task.scheduled_date || "Flexible"} {task.scheduled_start_time?.slice(0, 5) || ""}</span></div></div>
-                    <div className="flex shrink-0 gap-2"><button type="button" disabled={busyTaskReview === task.id} onClick={() => reviewTask(task.id, "approved")} className="rounded-xl bg-[#2fad45] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">{busyTaskReview === task.id ? "Reviewing..." : "✓ Approve & publish"}</button><button type="button" disabled={busyTaskReview === task.id} onClick={() => reviewTask(task.id, "rejected")} className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-bold text-red-600 disabled:opacity-50">Reject</button></div>
+                    <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">{task.service_name}</span><span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">{statusText(task.status)}</span></div><h3 className="mt-3 text-lg font-bold text-[#082f5b]">#{task.id} · {task.title}</h3><p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">{task.description}</p><div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs font-semibold text-slate-500"><span>Customer: {task.customer_name} ({task.customer_email})</span><span>📍 {[task.address_line_1, task.city, task.province, task.postal_code].filter(Boolean).join(", ")}</span><span>📅 {task.scheduled_date || "Flexible"} {task.scheduled_start_time?.slice(0, 5) || ""}</span></div></div>
+                    {task.status === "pending_approval" && <div className="flex shrink-0 gap-2"><button type="button" disabled={busyTaskReview === task.id} onClick={() => reviewTask(task.id, "approved")} className="rounded-xl bg-[#2fad45] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">{busyTaskReview === task.id ? "Reviewing..." : "✓ Approve & publish"}</button><button type="button" disabled={busyTaskReview === task.id} onClick={() => reviewTask(task.id, "rejected")} className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-bold text-red-600 disabled:opacity-50">Reject</button></div>}
                   </div>
                 </article>)}
               </div>}
@@ -1166,7 +1170,7 @@ export default function AdminDashboardPage() {
 
               {payments.length === 0 ? <div className="px-6 py-14 text-center text-sm font-semibold text-slate-500">Completed-task payments will appear here.</div> : <div className="divide-y divide-slate-100">
                 {payoutFeedback && <p ref={payoutFeedbackRef} tabIndex={-1} role={payoutFeedback.success ? "status" : "alert"} className={`my-3 rounded-xl p-3 text-sm font-semibold ${payoutFeedback.success ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>{payoutFeedback.message}</p>}
-                {payments.map((payment) => <article key={payment.id} className="p-5 sm:p-7">
+                {payments.map((payment) => <article key={payment.id} id={`payment-${payment.id}`} className="scroll-mt-28 p-5 sm:p-7">
                   <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2"><h3 className="font-bold text-[#082f5b]">#{payment.task_id} · {payment.task_title}</h3><StatusBadge value={payment.status} /></div>
@@ -1176,6 +1180,7 @@ export default function AdminDashboardPage() {
                     <div className="flex flex-wrap gap-2">
                       {payment.provider === "manual" && payment.status === "pending" && <><button type="button" disabled={busyFinance === `payments-${payment.id}`} onClick={() => updateFinance("payments", payment.id, "paid")} className="rounded-xl bg-[#2fad45] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">Mark payment paid</button><button type="button" disabled={busyFinance === `payments-${payment.id}`} onClick={() => updateFinance("payments", payment.id, "failed")} className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-bold text-red-600 disabled:opacity-50">Mark failed</button></>}
                       {payment.provider === "manual" && payment.status === "paid" && payment.payout_id && payment.payout_status === "pending" && <button type="button" disabled={busyFinance === `payouts-${payment.payout_id}`} onClick={() => updateFinance("payouts", payment.payout_id!, "paid")} className="rounded-xl bg-[#082f5b] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">Release Helper payout</button>}
+                      {payment.payout_id && <span className="block scroll-mt-28" id={`payout-${payment.payout_id}`} />}
                       {payment.provider === "paypal" && payment.uses_installments && payment.payout_id && <PayPalRelease id={payment.payout_id} status={payment.payout_status || "pending"} eligible={payment.status === "paid" && !!payment.customer_confirmed_at} submitted={!!payment.payout_submitted_at} busy={busyFinance === `payouts-${payment.payout_id}`} onAction={paypalPayout} />}
                       {payment.provider === "paypal" && !payment.uses_installments && payment.payout_id && (
                         payment.payout_approved_at ? (

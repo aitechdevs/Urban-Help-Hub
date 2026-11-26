@@ -18,7 +18,8 @@ class ApprovalEmailDelivery
                 })->orderBy('id')->lockForUpdate()->first();
             if (!$row) return null;
             $user = DB::table('users')->where('id', $row->user_id)->first();
-            $eligible = $user && $user->email === $row->recipient && $user->status === 'active';
+            $requiredStatus = $row->event_type === 'helper_account_suspended' ? 'suspended' : 'active';
+            $eligible = $user && $user->email === $row->recipient && $user->status === $requiredStatus;
             if ($eligible && $row->event_type === 'helper_verified') {
                 $eligible = DB::table('profiles')->where('user_id', $row->user_id)->value('verification_status') === 'verified';
             }

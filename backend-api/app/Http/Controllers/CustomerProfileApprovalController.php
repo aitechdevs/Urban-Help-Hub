@@ -173,7 +173,7 @@ class CustomerProfileApprovalController extends Controller
             ]);
             InAppNotification::send((int) $user->id, 'customer_profile_reviewed', 'Profile changes '.$data['decision'],
                 'Your profile changes were '.$data['decision'].($data['decision'] === 'approved' ? ' The approved details are now active.' : ' Your existing details were retained.'),
-                '/customer/profile/', ['profile_change_id' => $changeId]);
+                '/customer/profile/', ['profile_change_id' => $changeId], email: $data['decision'] === 'rejected');
             return ['success' => true, 'message' => 'Profile changes '.$data['decision'].'.'];
         }, 3);
         if (isset($result['error'])) return response()->json(['success' => false, 'message' => $result['error']], $result['status']);

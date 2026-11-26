@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Services\PayPalClient;
 use App\Services\TaskPayments;
+use App\Support\InAppNotification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -216,6 +217,7 @@ class PayPalPaymentController extends Controller
             ]);
 
             $this->auditPayout($administrator, $payoutId, 'released');
+            $this->notifyHelperPayout($payout, 'authorized', 'Your payout was authorized', 'An administrator authorized your payout. It is awaiting submission to PayPal.');
 
             return response()->json(['success' => true, 'message' => 'Release authorized. Submit the PayPal payout.', 'data' => ['payout_id' => $payoutId]]);
         });
@@ -262,6 +264,10 @@ class PayPalPaymentController extends Controller
         DB::transaction(function () use ($administrator, $payoutId, $batchId): void {
             DB::table('payouts')->where('id', $payoutId)->update(['provider_payout_id' => $batchId, 'updated_at' => now()]);
             $this->auditPayout($administrator, $payoutId, 'submitted');
+            $payout = DB::table('payouts')->where('id', $payoutId)->first();
+            if ($payout->status === 'processing') {
+                $this->notifyHelperPayout($payout, 'submitted', 'Your payout was submitted', 'UrbanHelpHub submitted your payout to PayPal. Payment confirmation is pending.');
+            }
         });
 
         return response()->json(['success' => true, 'message' => 'PayPal payout submitted. Payment is not marked paid until PayPal confirms success.']);
@@ -352,7 +358,18 @@ class PayPalPaymentController extends Controller
                 'paid_at' => $state === 'paid' ? ($payout->paid_at ?? now()) : null,
                 'failed_at' => $state === 'failed' ? now() : null, 'updated_at' => now(),
             ]);
+            if ($state !== $payout->status && $state === 'paid') {
+                $this->notifyHelperPayout($payout, 'paid', 'PayPal confirmed your payout', 'PayPal confirmed your UrbanHelpHub payout.');
+            } elseif ($state !== $payout->status && $state === 'failed') {
+                $this->notifyHelperPayout($payout, 'failed', 'Your PayPal payout needs attention', 'Your payout did not complete. Open your earnings for details.');
+            }
         });
+    }
+
+    private function notifyHelperPayout(object $payout, string $status, string $title, string $message): void
+    {
+        InAppNotification::send((int) $payout->helper_id, 'payout_'.$status, $title, $message,
+            data: ['payout_id' => $payout->id, 'task_id' => $payout->task_id], email: true);
     }
 
     public function processVerifiedEvent(array $event): bool

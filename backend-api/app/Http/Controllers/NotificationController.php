@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\NotificationDestination;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -10,12 +11,21 @@ class NotificationController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $userId = $request->user()->id;
+        $user = $request->user();
+        $userId = $user->id;
         $notifications = DB::table('notifications')
             ->where('user_id', $userId)
             ->orderByDesc('created_at')
             ->limit(30)
-            ->get();
+            ->get()
+            ->map(function (object $notification) use ($user): object {
+                $data = json_decode($notification->data ?? '', true);
+                $notification->action_url = NotificationDestination::for(
+                    $user->role, $notification->type, is_array($data) ? $data : [], $notification->action_url
+                );
+
+                return $notification;
+            });
 
         return response()->json([
             'success' => true,
