@@ -18,7 +18,7 @@ function worker(network = async () => new Response("network")) {
     caches: {
       open: async () => cache,
       match: async () => fallback,
-      keys: async () => ["unrelated-app", "urbanhelphub-public-v0", "urbanhelphub-public-v1"],
+      keys: async () => ["unrelated-app", "urbanhelphub-public-v1", "urbanhelphub-public-v2"],
       delete: async (key) => { recorded.deleted.push(key); return true; },
     },
     self: {
@@ -60,7 +60,7 @@ test("activation removes only obsolete caches owned by this application", async 
   let done;
   handlers.activate({ waitUntil: (promise) => { done = promise; } });
   await done;
-  assert.deepEqual(recorded.deleted, ["urbanhelphub-public-v0"]);
+  assert.deepEqual(recorded.deleted, ["urbanhelphub-public-v1"]);
   assert.ok(recorded.claimed);
 });
 

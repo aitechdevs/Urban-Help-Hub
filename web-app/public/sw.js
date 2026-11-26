@@ -2,7 +2,7 @@
  * Never cache documents, API calls, cookies, tokens, Next.js chunks, or payment pages.
  * Bump this version whenever the offline page or icons change.
  */
-const CACHE = "urbanhelphub-public-v1";
+const CACHE = "urbanhelphub-public-v2";
 const PUBLIC_ASSETS = ["/offline.html", "/icons/icon-192.png", "/icons/icon-512.png", "/icons/icon-maskable-512.png"];
 
 self.addEventListener("install", (event) => {

@@ -7,7 +7,7 @@
 </head>
 <body>
     <main>
-        <h1>UrbanHelpHub</h1>
+        <h1><img src="https://urbanhelphub.com/UrbanHelpHub-logo.png" width="220" height="51" alt="UrbanHelpHub"></h1>
         <p><a href="https://urbanhelphub.com/">Go to UrbanHelpHub</a></p>
     </main>
 </body>

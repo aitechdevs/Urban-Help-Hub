@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { API_URL } from "@/lib/api";
+import SuperAdminHeader from "@/components/SuperAdminHeader";
 
 type Source = "request" | "account" | "payout";
 
@@ -113,12 +114,7 @@ export default function AdminActivity() {
 
   return (
     <main className="min-h-screen bg-[#f6f8fb] text-[#082f5b]">
-      <header className="bg-[#082f5b] px-5 py-5 text-white">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3">
-          <span className="font-bold">UrbanHelpHub · Super Admin</span>
-          <a className="text-sm font-semibold underline" href="/admin/">Back to Admin dashboard</a>
-        </div>
-      </header>
+      <SuperAdminHeader />
 
       <div className="mx-auto max-w-6xl px-5 py-9">
         <h1 className="text-3xl font-bold">Administrator activity</h1>

@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { API_URL } from "@/lib/api";
+import SuperAdminHeader from "@/components/SuperAdminHeader";
 
 type AdminAccount = {
   id: number;
@@ -217,15 +218,9 @@ export default function AdministratorManagement() {
 
   return (
     <main className="min-h-screen bg-[#f6f8fb] text-[#082f5b]">
-      <header className="bg-[#082f5b] px-5 py-5 text-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
-          <span className="font-bold">UrbanHelpHub · Super Admin</span>
-          <nav className="flex flex-wrap gap-x-5 gap-y-2 text-sm font-semibold underline">
-            <a href="/admin/activity/">Activity log</a>
-            <a href="/admin/">Admin dashboard</a>
-          </nav>
-        </div>
-      </header>
+      <SuperAdminHeader>
+        <a href="/admin/activity/">Activity log</a>
+      </SuperAdminHeader>
       <div className="mx-auto max-w-6xl px-5 py-9">
         <div className="mb-6 flex items-center justify-between gap-3">
           <div>

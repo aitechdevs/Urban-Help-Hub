@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { API_URL } from "@/lib/api";
+import SiteLogo from "@/components/SiteLogo";
 
 type Message = {
   id: number;
@@ -128,7 +129,7 @@ export default function TaskConversations({ role }: { role: "customer" | "helper
     <main className="min-h-screen bg-[#f6f8fb] text-[#082f5b]">
       <header className="sticky top-0 z-20 border-b border-slate-200 bg-white px-5 py-4">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
-          <a href={dashboard} className="text-lg font-bold">UrbanHelpHub</a>
+          <SiteLogo href={dashboard} />
           <a href={dashboard} className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold hover:bg-slate-50">← Back to {role === "customer" ? "Customer" : "Helper"} Dashboard</a>
         </div>
       </header>

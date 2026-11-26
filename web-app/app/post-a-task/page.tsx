@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import RegionSelector from "@/components/RegionSelector";
 import { formatMoney, getStoredUser, REGIONS } from "@/lib/regions";
 import { API_URL } from "@/lib/api";
+import SiteLogo from "@/components/SiteLogo";
 
 type Category = { id: number; name: string; slug: string; description?: string | null };
 type ScheduleTimezones = {
@@ -159,7 +160,7 @@ export default function PostATaskPage() {
   }
 
   if (success) {
-    return <main className="grid min-h-screen place-items-center bg-slate-50 px-5"><section className="w-full max-w-xl rounded-[32px] border border-slate-200 bg-white p-8 text-center shadow-sm sm:p-12"><div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-emerald-100 text-3xl text-emerald-700">✓</div><p className="mt-6 text-sm font-black uppercase tracking-[0.16em] text-[var(--green)]">Task submitted</p><h1 className="mt-2 text-3xl font-black text-[var(--navy)]">Your request is awaiting approval.</h1><p role="status" className="mt-4 leading-7 text-emerald-700">{success.message}</p><div className="mt-6 rounded-2xl bg-slate-50 p-4 font-bold text-[var(--navy)]">Verified matching Helpers will be notified after Admin approval.</div><button type="button" onClick={() => router.replace("/dashboard")} className="mt-7 w-full rounded-2xl bg-[var(--navy)] px-6 py-4 font-black text-white">View my tasks →</button></section></main>;
+    return <main className="grid min-h-screen place-items-center bg-slate-50 px-5"><section className="w-full max-w-xl rounded-[32px] border border-slate-200 bg-white p-8 text-center shadow-sm sm:p-12"><SiteLogo href="/dashboard/" /><div className="mx-auto mt-6 grid h-16 w-16 place-items-center rounded-full bg-emerald-100 text-3xl text-emerald-700">✓</div><p className="mt-6 text-sm font-black uppercase tracking-[0.16em] text-[var(--green)]">Task submitted</p><h1 className="mt-2 text-3xl font-black text-[var(--navy)]">Your request is awaiting approval.</h1><p role="status" className="mt-4 leading-7 text-emerald-700">{success.message}</p><div className="mt-6 rounded-2xl bg-slate-50 p-4 font-bold text-[var(--navy)]">Verified matching Helpers will be notified after Admin approval.</div><button type="button" onClick={() => router.replace("/dashboard")} className="mt-7 w-full rounded-2xl bg-[var(--navy)] px-6 py-4 font-black text-white">View my tasks →</button></section></main>;
   }
 
   return <main className="min-h-screen bg-slate-50 text-slate-950">
