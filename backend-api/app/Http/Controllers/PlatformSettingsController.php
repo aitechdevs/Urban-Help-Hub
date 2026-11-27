@@ -30,7 +30,7 @@ class PlatformSettingsController extends Controller
             'tagline' => ['present', 'nullable', 'string', 'max:250'],
             'support_email' => ['present', 'nullable', 'email:rfc', 'max:254'],
             'support_phone' => ['present', 'nullable', 'string', 'max:30', 'regex:/^\+?[0-9 ()-]{7,29}$/D'],
-            'social_links' => ['present', 'array', 'list', 'max:12'],
+            'social_links' => ['present', 'array', 'list'],
             'social_links.*' => ['array:label,url,icon,custom_icon'],
             'social_links.*.label' => ['required', 'string', 'max:50'],
             'social_links.*.url' => ['required', 'string', 'url:https', 'max:500'],

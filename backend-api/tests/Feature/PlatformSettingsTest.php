@@ -56,4 +56,34 @@ class PlatformSettingsTest extends TestCase
             ->assertJsonPath('data.social_links', $details['social_links'])
             ->assertJsonMissingPath('data.paypal_client_secret');
     }
+
+    public function test_existing_social_links_can_be_extended_and_edited_beyond_twelve(): void
+    {
+        $owner = User::factory()->create(['role' => 'super_admin', 'status' => 'active']);
+        $this->withToken($owner->createToken('test')->plainTextToken);
+
+        $facebook = ['label' => 'Facebook', 'url' => 'https://facebook.com/example', 'icon' => 'facebook'];
+        $details = [
+            'display_name' => 'UrbanHelpHub',
+            'tagline' => '',
+            'support_email' => '',
+            'support_phone' => '',
+            'social_links' => [$facebook],
+        ];
+        $this->putJson(self::ADMIN_URL, $details)->assertOk();
+
+        $details['social_links'] = [
+            $facebook,
+            ...array_map(
+                fn (int $number) => ['label' => "Profile {$number}", 'url' => "https://example.com/{$number}", 'icon' => 'link'],
+                range(2, 25),
+            ),
+        ];
+        $this->putJson(self::ADMIN_URL, $details)->assertOk()->assertJsonCount(25, 'data.social_links');
+
+        $details['social_links'][24]['label'] = 'Updated profile';
+        $this->putJson(self::ADMIN_URL, $details)->assertOk();
+        $this->getJson(self::ADMIN_URL)->assertOk()->assertJsonPath('data.social_links', $details['social_links']);
+        $this->getJson(self::PUBLIC_URL)->assertOk()->assertJsonPath('data.social_links', $details['social_links']);
+    }
 }
