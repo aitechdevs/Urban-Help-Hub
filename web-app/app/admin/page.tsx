@@ -838,7 +838,7 @@ export default function AdminDashboardPage() {
                   type="button"
                   onClick={() => loadAdminData(true)}
                   disabled={refreshing}
-                  className="inline-flex cursor-pointer items-center justify-center gap-2 self-start rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-bold text-white transition hover:bg-white/20 focus:outline-none focus:ring-4 focus:ring-white/10 disabled:cursor-not-allowed disabled:opacity-60 md:self-auto"
+                  className="inline-flex cursor-pointer items-center justify-center gap-2 self-start rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-bold text-white transition hover:bg-white/20 focus:outline-none focus:ring-4 focus:ring-white/10 disabled:cursor-not-allowed disabled:opacity-60 md:self-auto max-md:whitespace-nowrap"
                 >
                   <Icon
                     name="refresh"
@@ -1210,7 +1210,7 @@ export default function AdminDashboardPage() {
                       {payment.provider === "paypal" && payment.uses_installments && payment.payout_id && <PayPalRelease id={payment.payout_id} status={payment.payout_status || "pending"} eligible={payment.status === "paid" && !!payment.customer_confirmed_at} submitted={!!payment.payout_submitted_at} busy={busyFinance === `payouts-${payment.payout_id}`} onAction={paypalPayout} />}
                       {payment.provider === "paypal" && !payment.uses_installments && payment.payout_id && (
                         payment.payout_approved_at ? (
-                          <button type="button" disabled={busyFinance === `payouts-${payment.payout_id}`} onClick={() => paypalPayout(payment.payout_id!, "reconcile-paypal")} className="rounded-xl border px-4 py-2 text-sm font-bold">Refresh historical PayPal payout</button>
+                          <button type="button" disabled={busyFinance === `payouts-${payment.payout_id}`} onClick={() => paypalPayout(payment.payout_id!, "reconcile-paypal")} className="rounded-xl border px-4 py-2 text-sm font-bold max-md:min-h-11 max-md:shrink-0 max-md:whitespace-nowrap"><span className="md:hidden">Refresh PayPal payout</span><span className="hidden md:inline">Refresh historical PayPal payout</span></button>
                         ) : payment.status === "paid" && payment.payout_status === "pending" && payment.paypal_dispute_status !== "OPEN" && payment.payout_account_version ? (
                           <button type="button" disabled={busyFinance === `payouts-${payment.payout_id}`} onClick={() => {
                             if (window.confirm(`Approve the historical payout to ${payment.payout_recipient || "the saved PayPal account"}?`)) {

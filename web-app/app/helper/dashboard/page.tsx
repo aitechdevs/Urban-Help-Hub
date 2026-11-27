@@ -656,7 +656,7 @@ export default function HelperDashboardPage() {
               <RegionSelector />
               <button
                 type="button"
-                onClick={() => router.push("/become-a-helper")}
+                onClick={() => router.push("/helper/profile/")}
                 className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-bold text-[#082f5b] transition hover:bg-slate-50"
               >
                 {t("editProfile")}
@@ -718,7 +718,7 @@ export default function HelperDashboardPage() {
               <button type="button" onClick={() => router.push("/helper/messages")} className="block w-full rounded-lg px-3 py-2 text-left font-semibold text-slate-600">Messages</button>
               <button
                 type="button"
-                onClick={() => router.push("/become-a-helper")}
+                onClick={() => router.push("/helper/profile/")}
                 className="block w-full rounded-lg px-3 py-2 text-left font-semibold text-slate-600"
               >
                 {t("editProfile")}
@@ -873,7 +873,7 @@ export default function HelperDashboardPage() {
 
                 <button
                   type="button"
-                  onClick={() => router.push("/become-a-helper")}
+                  onClick={() => router.push(data.services.length ? "/helper/profile/#services" : "/become-a-helper/")}
                   className="text-sm font-bold text-[#238f39] hover:underline"
                 >
                   Manage
@@ -1220,7 +1220,7 @@ export default function HelperDashboardPage() {
 
                 <button
                   type="button"
-                  onClick={() => router.push("/become-a-helper")}
+                  onClick={() => router.push(data.profile ? "/helper/profile/#availability" : "/become-a-helper/")}
                   className="text-sm font-bold text-[#238f39] hover:underline"
                 >
                   Edit

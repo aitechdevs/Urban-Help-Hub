@@ -141,7 +141,7 @@ export default function TaskConversations({ role }: { role: "customer" | "helper
       <div className="mx-auto max-w-6xl px-4 py-8">
         <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
           <div><p className="text-xs font-bold uppercase tracking-wider text-emerald-700">{role} workspace</p><h1 className="mt-1 text-3xl font-bold">Messages</h1><p className="mt-1 text-sm text-slate-500">Only participants in a confirmed task can access its conversation.</p></div>
-          <button type="button" onClick={() => void refresh()} className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-bold hover:bg-slate-50">Refresh</button>
+          <button type="button" onClick={() => void refresh()} className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-bold hover:bg-slate-50 max-md:min-h-11 max-md:shrink-0 max-md:whitespace-nowrap">Refresh</button>
         </div>
         {error && <p ref={errorRef} tabIndex={-1} role="alert" className="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</p>}
         {loading ? <p className="rounded-xl bg-white p-6">Loading conversations…</p> : !threads.length ? (

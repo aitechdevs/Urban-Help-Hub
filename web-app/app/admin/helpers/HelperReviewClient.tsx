@@ -320,12 +320,12 @@ export default function HelperReviewPage() {
   return (
     <main className="min-h-screen bg-[#f5f7fa] text-slate-700">
       <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-4 sm:px-8">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-4 max-md:flex-wrap sm:px-8">
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
             <SiteLogo href="/admin/" />
             <Link href="/admin" className="text-sm font-bold text-[#082f5b] hover:text-[#238f39]">← Admin dashboard</Link>
           </div>
-          <button type="button" onClick={() => loadApplication(true)} disabled={refreshing || !!busyAction} className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-[#082f5b] hover:bg-slate-50 disabled:opacity-50">
+          <button type="button" onClick={() => loadApplication(true)} disabled={refreshing || !!busyAction} className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-[#082f5b] hover:bg-slate-50 disabled:opacity-50 max-md:min-h-11 max-md:shrink-0 max-md:whitespace-nowrap">
             {refreshing ? "Refreshing…" : "Refresh application"}
           </button>
         </div>

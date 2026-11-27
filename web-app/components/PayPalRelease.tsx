@@ -20,5 +20,5 @@ export default function PayPalRelease({ id, status, eligible, submitted, onActio
     <button type="button" disabled={busy || !eligible || !verified || tax === "" || !Number.isFinite(Number(tax)) || Number(tax) < 0} onClick={() => onAction(id, "release", { customer_verified: true, tax_amount: tax })} className="min-h-11 rounded-xl bg-[#082f5b] px-4 py-2.5 text-sm max-sm:w-full font-bold text-white disabled:opacity-50">Release full helper payment via PayPal</button>
   </div>;
   if (status === "processing" && !submitted) return <button disabled={busy} onClick={() => onAction(id, "submit")} className="min-h-11 rounded-xl bg-[#082f5b] px-4 py-2 text-sm font-bold text-white disabled:opacity-50">Submit authorized PayPal payout</button>;
-  return <button disabled={busy} onClick={() => onAction(id, "refresh")} className="min-h-11 rounded-xl border px-4 py-2 text-sm font-bold disabled:opacity-50">Refresh PayPal payout status</button>;
+  return <button disabled={busy} onClick={() => onAction(id, "refresh")} className="min-h-11 rounded-xl border px-4 py-2 text-sm font-bold disabled:opacity-50 max-md:shrink-0 max-md:whitespace-nowrap"><span className="md:hidden">Refresh PayPal status</span><span className="hidden md:inline">Refresh PayPal payout status</span></button>;
 }
