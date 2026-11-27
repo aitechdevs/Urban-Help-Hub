@@ -7,6 +7,7 @@ import RegionSelector from "@/components/RegionSelector";
 import { formatMoney, storedCurrency } from "@/lib/regions";
 import { useLanguage } from "@/components/LanguageProvider";
 import { API_URL } from "@/lib/api";
+import PlatformFooterDetails from "@/components/PlatformFooterDetails";
 import { PayPalAccount } from "@/components/PayPalPayment";
 
 type User = {
@@ -1310,9 +1311,7 @@ export default function HelperDashboardPage() {
             className="h-8 w-auto self-start"
           />
 
-          <p className="text-sm text-slate-500">
-            Local help. Clear expectations. Stronger communities.
-          </p>
+          <PlatformFooterDetails defaultTagline="Local help. Clear expectations. Stronger communities." />
         </div>
       </footer>
     </main>

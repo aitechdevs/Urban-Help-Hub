@@ -7,6 +7,7 @@ import RegionSelector from "@/components/RegionSelector";
 import { formatMoney } from "@/lib/regions";
 import { useLanguage } from "@/components/LanguageProvider";
 import { API_URL } from "@/lib/api";
+import PlatformFooterDetails from "@/components/PlatformFooterDetails";
 import Link from "next/link";
 import PayPalPayment from "@/components/PayPalPayment";
 
@@ -635,6 +636,8 @@ export default function CustomerDashboard() {
             alt="UrbanHelpHub"
             className="h-10 w-auto max-w-[190px] object-contain"
           />
+
+          <PlatformFooterDetails />
 
           <p className="text-xs font-semibold text-slate-400">
             © 2026 UrbanHelpHub. Canada.

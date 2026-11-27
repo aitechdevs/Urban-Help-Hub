@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { API_URL } from "@/lib/api";
+import PlatformFooterDetails from "@/components/PlatformFooterDetails";
 
 type ServiceCategory = {
   id: number;
@@ -1051,10 +1052,9 @@ export default function Home() {
               className="h-14 w-auto max-w-[240px] object-contain sm:h-16"
             />
 
-            <p className="mt-4 max-w-sm leading-7 text-slate-500">
-              A Canadian marketplace connecting people who need help with
-              trusted local people ready to work.
-            </p>
+            <div className="mt-4">
+              <PlatformFooterDetails defaultTagline="A Canadian marketplace connecting people who need help with trusted local people ready to work." />
+            </div>
 
           </div>
 

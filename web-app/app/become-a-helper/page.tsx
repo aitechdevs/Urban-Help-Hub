@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { API_URL } from "@/lib/api";
+import PlatformFooterDetails from "@/components/PlatformFooterDetails";
 
 type User = {
   id: number;
@@ -1623,9 +1624,7 @@ export default function BecomeAHelperPage() {
             className="h-8 w-auto self-start"
           />
 
-          <p className="text-sm text-slate-500">
-            Local help. Clear expectations. Stronger communities.
-          </p>
+          <PlatformFooterDetails defaultTagline="Local help. Clear expectations. Stronger communities." />
         </div>
       </footer>
     </main>

@@ -116,6 +116,7 @@ type IconName =
   | "tasks"
   | "payments"
   | "shield"
+  | "settings"
   | "search"
   | "arrow"
   | "check"
@@ -245,6 +246,17 @@ function Icon({
         <rect x="2" y="5" width="20" height="14" rx="2" />
         <path d="M2 10h20" />
         <path d="M6 15h2" />
+      </svg>
+    );
+  }
+
+  if (name === "settings") {
+    return (
+      <svg viewBox="0 0 24 24" className={className} {...common}>
+        <path d="M4 7h6m4 0h6M4 12h10m4 0h2M4 17h2m4 0h10" />
+        <circle cx="12" cy="7" r="2" />
+        <circle cx="16" cy="12" r="2" />
+        <circle cx="8" cy="17" r="2" />
       </svg>
     );
   }
@@ -705,6 +717,11 @@ export default function AdminDashboardPage() {
             icon="shield"
             label="Activity log"
             onClick={() => window.location.assign("/admin/activity/")}
+          />
+          <SidebarButton
+            icon="settings"
+            label="Settings"
+            onClick={() => window.location.assign("/admin/settings/")}
           />
         </>
       )}

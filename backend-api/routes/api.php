@@ -228,3 +228,5 @@ require __DIR__.'/administrator-notifications.php';
 require __DIR__.'/account-email-confirmation.php';
 
 require __DIR__.'/helper-profile.php';
+
+require __DIR__.'/platform-settings.php';
